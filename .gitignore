@@ -1,0 +1,41 @@
+# Node modules (Semua folder node_modules di root, frontend, backend, maupun blockchain)
+node_modules/
+
+# Lingkungan dan rahasia (Passwords, Private Keys)
+.env
+.env.*
+!.env.example
+
+# File unggahan pengguna (PDF Ijazah)
+uploads/
+
+# Hardhat (Blockchain files yang digenerate otomatis)
+blockchain/artifacts/
+blockchain/cache/
+blockchain/typechain/
+blockchain/typechain-types/
+
+# Frontend (Build folder dan cache)
+frontend/dist/
+frontend/build/
+frontend/.eslintcache
+frontend/dist-ssr/
+
+# Sistem Operasi
+.DS_Store
+Thumbs.db
+
+# Log
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor directories and files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
