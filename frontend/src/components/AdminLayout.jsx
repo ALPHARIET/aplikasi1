@@ -9,6 +9,7 @@ export default function AdminLayout({ children }) {
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: FileText },
     { name: 'Students', href: '/admin/students', icon: Users },
+    { name: 'Documents', href: '/admin/documents', icon: FileText },
     { name: 'Issue Document', href: '/admin/issue', icon: FilePlus },
   ];
 

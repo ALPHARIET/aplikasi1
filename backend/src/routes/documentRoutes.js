@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const DocumentController = require('../controllers/documentController');
+const ScannerController = require('../controllers/scannerController');
 const upload = require('../middleware/uploadMiddleware');
 const { verifyToken, isAdmin } = require('../middleware/authMiddleware');
 
@@ -18,5 +19,8 @@ router.get('/my-documents', DocumentController.getMyDocuments);
 router.post('/issue', isAdmin, upload.single('document'), DocumentController.uploadAndIssue);
 router.post('/revoke/:verificationId', isAdmin, DocumentController.revoke);
 router.get('/', isAdmin, DocumentController.getAll);
+
+// OCR / Scanner route
+router.post('/scan', isAdmin, upload.single('document'), ScannerController.scanDocument);
 
 module.exports = router;

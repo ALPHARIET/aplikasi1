@@ -53,7 +53,7 @@ const DocumentController = {
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       const verifyUrl = `${frontendUrl}/verify/${verificationId}`;
       const qrPath = path.join(__dirname, '../../../uploads', `${verificationId}-qr.png`);
-      
+
       await QRCode.toFile(qrPath, verifyUrl, {
         color: { dark: '#000000', light: '#FFFFFF' }
       });
@@ -61,9 +61,9 @@ const DocumentController = {
       // 5. Update status di database menjadi "issued"
       const qrRelativePath = qrPath.replace(/\\/g, '/');
       await DocumentModel.updateIssueStatus(
-        verificationId, 
-        bcReceipt.txHash, 
-        bcReceipt.blockNumber, 
+        verificationId,
+        bcReceipt.txHash,
+        bcReceipt.blockNumber,
         bcReceipt.issuer,
         qrRelativePath
       );
@@ -127,7 +127,7 @@ const DocumentController = {
 
       // 2. Cek ke Blockchain apakah valid
       const isValidOnChain = await BlockchainService.isDocumentValid(verificationId);
-      
+
       // 3. Cek Hash (Hanya memastikan hash-nya masih match dengan yang di-upload awal)
       // Dalam implementasi nyata, frontend bisa upload file untuk di-hash ulang dan dicocokkan dengan blockchain
       const isHashValid = await BlockchainService.verifyHash(verificationId, doc.file_hash);
@@ -162,7 +162,7 @@ const DocumentController = {
       if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded for verification' });
       }
-      
+
       const { verificationId } = req.body;
       if (!verificationId) {
         fs.unlinkSync(req.file.path);
@@ -171,7 +171,7 @@ const DocumentController = {
 
       // Hash file yang baru diupload
       const uploadedFileHash = await HashService.hashFile(req.file.path);
-      
+
       // Hapus file temp karena tidak perlu disimpan
       fs.unlinkSync(req.file.path);
 
