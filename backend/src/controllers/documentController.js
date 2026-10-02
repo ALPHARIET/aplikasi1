@@ -2,6 +2,7 @@ const DocumentModel = require('../models/documentModel');
 const StudentModel = require('../models/studentModel');
 const HashService = require('../utils/hashService');
 const BlockchainService = require('../services/blockchainService');
+const DocumentComparator = require('../services/documentComparator');
 const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
@@ -172,32 +173,73 @@ const DocumentController = {
       // Hash file yang baru diupload
       const uploadedFileHash = await HashService.hashFile(req.file.path);
 
-      // Hapus file temp karena tidak perlu disimpan
-      fs.unlinkSync(req.file.path);
-
-      // Verifikasi Hash ke Blockchain
-      const isHashValid = await BlockchainService.verifyHash(verificationId, uploadedFileHash);
+      // Verifikasi ke Blockchain. verifyHash hanya true jika hash cocok DAN dokumen aktif,
+      // jadi status revoke dicek terpisah lewat isDocumentValid.
       const isDocValid = await BlockchainService.isDocumentValid(verificationId);
+      const isHashValid = isDocValid && await BlockchainService.verifyHash(verificationId, uploadedFileHash);
+      const doc = await DocumentModel.getByVerificationId(verificationId);
 
-      if (isHashValid && isDocValid) {
-        // Ambil info dokumen
-        const doc = await DocumentModel.getByVerificationId(verificationId);
+      if (isHashValid) {
+        fs.unlinkSync(req.file.path);
         return res.json({
           isValid: true,
           message: 'Document is authentic and unmodified',
           documentInfo: doc
         });
-      } else if (!isHashValid) {
+      }
+
+      if (!isDocValid) {
+        fs.unlinkSync(req.file.path);
+        const isRevoked = doc && doc.status === 'revoked';
         return res.json({
           isValid: false,
-          message: 'Document has been modified or is fake. Hash does not match.'
-        });
-      } else if (!isDocValid) {
-        return res.json({
-          isValid: false,
-          message: 'Document hash matches, but the document has been revoked by the issuer.'
+          message: isRevoked
+            ? 'Document has been revoked by the issuer.'
+            : 'Document is not registered on the blockchain.',
+          revocationReason: isRevoked ? doc.revocation_reason : null
         });
       }
+
+      // File ini mungkin dokumen asli yang terdaftar dengan Verification ID lain (ID tertukar)
+      const matchingDoc = await DocumentModel.getByFileHash(uploadedFileHash);
+      if (matchingDoc && matchingDoc.verification_id !== verificationId &&
+          await BlockchainService.verifyHash(matchingDoc.verification_id, uploadedFileHash)) {
+        fs.unlinkSync(req.file.path);
+        return res.json({
+          isValid: false,
+          message: 'This file is an authentic document, but it is registered under a different Verification ID.',
+          matchedDocument: {
+            verificationId: matchingDoc.verification_id,
+            docTitle: matchingDoc.doc_title,
+            docType: matchingDoc.doc_type
+          }
+        });
+      }
+
+      // Hash tidak cocok → bandingkan isi dokumen dengan file asli untuk menandai field yang berbeda
+      let comparison = null;
+      try {
+        comparison = await DocumentComparator.compareDocuments(doc.file_path, req.file.path, req.file.mimetype);
+      } catch (compareError) {
+        console.error('Document Compare Error:', compareError);
+        comparison = { supported: false, reason: 'Dokumen tidak dapat dibaca untuk perbandingan.' };
+      }
+      fs.unlinkSync(req.file.path);
+
+      return res.json({
+        isValid: false,
+        message: 'Document has been modified or is fake. Hash does not match.',
+        documentInfo: {
+          verificationId: doc.verification_id,
+          docType: doc.doc_type,
+          docTitle: doc.doc_title,
+          studentName: doc.full_name,
+          studentId: doc.student_id_number,
+          issuedAt: doc.issued_at,
+          txHash: doc.tx_hash
+        },
+        comparison
+      });
 
     } catch (error) {
       if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
@@ -217,7 +259,33 @@ const DocumentController = {
     }
   },
 
-  // 6. Get By Student (Student View)
+  // 6. Download file dokumen (Admin atau mahasiswa pemilik dokumen)
+  download: async (req, res) => {
+    try {
+      const doc = await DocumentModel.getByVerificationId(req.params.verificationId);
+      if (!doc) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+
+      if (req.user.role !== 'admin') {
+        const student = await StudentModel.getByUserId(req.user.id);
+        if (!student || student.id !== doc.student_id) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+      }
+
+      if (!doc.file_path || !fs.existsSync(doc.file_path)) {
+        return res.status(404).json({ error: 'Document file not found' });
+      }
+
+      res.download(doc.file_path, `${doc.verification_id}${path.extname(doc.file_path)}`);
+    } catch (error) {
+      console.error('Download Error:', error);
+      res.status(500).json({ error: 'Failed to download document' });
+    }
+  },
+
+  // 7. Get By Student (Student View)
   getMyDocuments: async (req, res) => {
     try {
       // req.user.id adalah ID user yang sedang login

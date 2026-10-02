@@ -9,6 +9,9 @@ node_modules/
 # File unggahan pengguna (PDF Ijazah)
 uploads/
 
+# PDF hasil seed demo (dibuat ulang oleh npm run seed:demo)
+backend/database/seeds/demo-transcripts/
+
 # Hardhat (Blockchain files yang digenerate otomatis)
 blockchain/artifacts/
 blockchain/cache/

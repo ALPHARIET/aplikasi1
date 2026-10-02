@@ -25,7 +25,8 @@ class BlockchainService {
       const rpcUrl = process.env.RPC_URL || 'http://127.0.0.1:8545';
       const privateKey = process.env.OWNER_PRIVATE_KEY; 
 
-      this.provider = new ethers.JsonRpcProvider(rpcUrl);
+      // cacheTimeout -1: jangan cache hasil RPC (mis. nonce), agar transaksi beruntun tidak bentrok nonce
+      this.provider = new ethers.JsonRpcProvider(rpcUrl, undefined, { cacheTimeout: -1 });
 
       // Jika ada private key, buat Wallet (untuk Admin/Write operations)
       if (privateKey) {

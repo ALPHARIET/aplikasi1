@@ -14,6 +14,7 @@ router.use(verifyToken);
 
 // Student routes
 router.get('/my-documents', DocumentController.getMyDocuments);
+router.get('/:verificationId/download', DocumentController.download);
 
 // Admin routes
 router.post('/issue', isAdmin, upload.single('document'), DocumentController.uploadAndIssue);

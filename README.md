@@ -96,6 +96,30 @@ npm run dev                                  # buka http://localhost:5173
 - Login admin: **admin@univ.edu** / **adminpassword123**
 - Admin dapat menambah mahasiswa, upload & menerbitkan dokumen ke blockchain, dan mencabut (revoke) dokumen.
 - Halaman verifikasi publik: `http://localhost:5173/verify` (bisa lewat Verification ID, QR code, atau upload file untuk dicocokkan hash-nya).
+  Jika file transkrip yang diupload berbeda dari aslinya, field yang dimanipulasi ditandai kotak merah di atas dokumen.
+
+### Data demo (opsional)
+
+Dengan backend dan Hardhat node berjalan:
+
+```bash
+cd backend
+npm run seed:demo
+```
+
+Perintah ini membuat **10 mahasiswa demo** (data fiktif, "Universitas Contoh Nusantara"). Masing-masing punya akun
+sendiri dan **1 transkrip asli** yang langsung diterbitkan ke blockchain, plus **1 versi palsu** yang tidak diterbitkan.
+Semua akun mahasiswa demo memakai password **demopassword123**.
+
+Hasilnya tersimpan di `backend/database/seeds/demo-transcripts/`:
+
+- `asli/` — 10 file yang diterbitkan (verifikasi → valid)
+- `palsu/` — 10 versi yang sudah dimanipulasi (verifikasi → field yang diubah ditandai kotak merah)
+- `DAFTAR-VERIFICATION-ID.txt` — nama, email login, Verification ID, dan pasangan file asli/palsu tiap mahasiswa
+
+Upload file dengan Verification ID pasangannya di halaman verifikasi. Aman dijalankan ulang: transkrip yang masih valid
+di blockchain dipertahankan, yang tidak valid (mis. setelah Hardhat node di-restart dan contract di-deploy ulang)
+diterbitkan ulang. File PDF dibuat deterministik, jadi file `asli/` selalu cocok dengan yang terdaftar.
 
 ## Catatan penting
 

@@ -7,7 +7,7 @@ const DocumentModel = {
       SELECT d.*, s.student_id_number, s.full_name, s.faculty 
       FROM documents d
       JOIN students s ON d.student_id = s.id
-      ORDER BY d.created_at DESC
+      ORDER BY d.created_at DESC, d.id DESC
     `;
     const [rows] = await db.query(query);
     return rows;
@@ -18,7 +18,7 @@ const DocumentModel = {
     const query = `
       SELECT * FROM documents 
       WHERE student_id = ?
-      ORDER BY created_at DESC
+      ORDER BY created_at DESC, id DESC
     `;
     const [rows] = await db.query(query, [studentId]);
     return rows;
@@ -33,6 +33,19 @@ const DocumentModel = {
       WHERE d.verification_id = ?
     `;
     const [rows] = await db.query(query, [verificationId]);
+    return rows[0];
+  },
+
+  // Cari dokumen terbit berdasarkan hash file (untuk mendeteksi Verification ID yang tertukar)
+  getByFileHash: async (fileHash) => {
+    const query = `
+      SELECT verification_id, doc_title, doc_type, status
+      FROM documents
+      WHERE file_hash = ? AND status = 'issued'
+      ORDER BY id DESC
+      LIMIT 1
+    `;
+    const [rows] = await db.query(query, [fileHash]);
     return rows[0];
   },
 
