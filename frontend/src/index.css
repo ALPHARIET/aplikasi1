@@ -1,9 +1,37 @@
+@import '@fontsource-variable/inter';
+@import '@fontsource/jetbrains-mono';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  body {
-    @apply bg-slate-50 text-slate-900;
+  html {
+    font-feature-settings: "cv11", "ss01";
   }
+  body {
+    background-color: #F6F7FB;
+    color: #111633;
+    font-family: "Inter Variable", Inter, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    font-feature-settings: "cv11", "ss01";
+  }
+}
+
+/* Custom scrollbars for clean internal table and drawer scrolling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
 }

@@ -2,25 +2,30 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { FileText, LogOut, Download, CheckCircle, ShieldAlert, Clock, Loader2 } from 'lucide-react';
+import { LogOut, Download, CheckCircle, ShieldAlert, Clock, Loader2, FileText, ShieldCheck } from 'lucide-react';
+import BrandLogo from '../components/BrandLogo';
+import Button from '../components/ui/Button';
+import StatusBadge from '../components/ui/StatusBadge';
+import CopyText from '../components/ui/CopyText';
+import Card from '../components/ui/Card';
+import EmptyState from '../components/ui/EmptyState';
 
-const STATUS_STYLE = {
-  issued: { label: 'Valid', box: 'bg-emerald-50 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700', Icon: CheckCircle },
-  revoked: { label: 'Revoked', box: 'bg-red-50 text-red-600', badge: 'bg-red-100 text-red-700', Icon: ShieldAlert },
-  pending: { label: 'Pending', box: 'bg-amber-50 text-amber-600', badge: 'bg-amber-100 text-amber-700', Icon: Clock }
+const STATUS_CONFIG = {
+  issued: { label: 'Valid', box: 'bg-emerald-50 text-emerald-600', Icon: CheckCircle },
+  revoked: { label: 'Dicabut', box: 'bg-red-50 text-red-600', Icon: ShieldAlert },
+  pending: { label: 'Menunggu', box: 'bg-amber-50 text-amber-600', Icon: Clock },
 };
 
 export default function StudentDashboard() {
   const { logout, user } = useAuth();
-
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     api.get('/documents/my-documents')
-      .then(res => setDocuments(res.data.documents || []))
-      .catch(err => setError(err.response?.data?.error || 'Gagal memuat dokumen.'))
+      .then((res) => setDocuments(res.data.documents || []))
+      .catch((err) => setError(err.response?.data?.error || 'Gagal memuat dokumen mahasiswa.'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -39,82 +44,128 @@ export default function StudentDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Navbar */}
-      <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-2 text-indigo-600">
-          <FileText className="w-6 h-6" />
-          <span className="font-bold text-xl tracking-tight text-slate-900">Student Portal</span>
+    <div className="min-h-screen bg-canvas">
+      {/* Navbar Mahasiswa */}
+      <nav className="bg-surface border-b border-border px-6 py-4 flex justify-between items-center shadow-sm">
+        <div className="flex items-center gap-3">
+          <BrandLogo className="h-9 w-auto object-contain" />
+          <div>
+            <span className="font-semibold text-base tracking-tight text-brand-900 block">
+              BlockCertify
+            </span>
+            <span className="text-[10px] text-muted tracking-wider uppercase font-medium">
+              Portal Mahasiswa
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-6">
-          <div className="text-right">
-            <p className="text-sm font-medium text-slate-900">{user?.name}</p>
-            <p className="text-xs text-slate-500">{user?.email}</p>
+          <div className="text-right hidden sm:block">
+            <p className="text-xs font-semibold text-ink">{user?.name}</p>
+            <p className="text-[11px] text-muted">{user?.email}</p>
           </div>
-          <button
+          <Button
+            variant="dangerOutline"
+            size="sm"
             onClick={logout}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+            icon={LogOut}
           >
-            <LogOut className="w-4 h-4" />
-            Sign out
-          </button>
+            Keluar
+          </Button>
         </div>
       </nav>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto px-6 py-8">
-        <h1 className="text-2xl font-bold text-slate-900 mb-8">My Documents</h1>
-        
+      <main className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-brand-900 tracking-tight">Dokumen Saya</h1>
+          <p className="text-xs text-muted mt-1">
+            Daftar ijazah dan transkrip nilai akademik Anda yang tercatat secara sah di blockchain.
+          </p>
+        </div>
+
         {loading && (
-          <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 text-indigo-600 animate-spin" /></div>
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted">
+            <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
+            <span className="text-xs">Memuat dokumen akademik Anda...</span>
+          </div>
         )}
-        {error && <p className="text-red-600">{error}</p>}
+
+        {error && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
+            {error}
+          </div>
+        )}
+
         {!loading && !error && documents.length === 0 && (
-          <p className="text-slate-500">Belum ada dokumen yang diterbitkan.</p>
+          <Card className="py-12">
+            <EmptyState
+              icon={FileText}
+              title="Belum Ada Dokumen"
+              description="Belum ada ijazah atau transkrip nilai yang diterbitkan untuk akun mahasiswa Anda."
+            />
+          </Card>
         )}
 
-        <div className="grid gap-6">
+        <div className="grid gap-4">
           {documents.map((doc) => {
-            const style = STATUS_STYLE[doc.status] || STATUS_STYLE.pending;
+            const config = STATUS_CONFIG[doc.status] || STATUS_CONFIG.pending;
+            const Icon = config.Icon;
             return (
-            <div key={doc.id} className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:shadow-md transition-shadow">
-              
-              <div className="flex items-start gap-4">
-                <div className={`p-3 rounded-xl ${style.box}`}>
-                  <style.Icon className="w-6 h-6" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-bold text-lg text-slate-900">{doc.doc_title}</h3>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${style.badge}`}>{style.label}</span>
+              <Card
+                key={doc.id}
+                className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:border-brand-500 transition-colors"
+              >
+                <div className="flex items-start gap-4 min-w-0">
+                  <div className={`p-3 rounded-xl ${config.box} shrink-0`}>
+                    <Icon className="w-6 h-6" />
                   </div>
-                  <div className="text-sm text-slate-500 mt-1 flex flex-col gap-1">
-                    <p className="break-all"><span className="font-medium text-slate-700">Verification ID:</span> {doc.verification_id}</p>
-                    <p><span className="font-medium text-slate-700">Issued Date:</span> {doc.issued_at ? new Date(doc.issued_at).toLocaleDateString('id-ID') : '-'}</p>
-                    {doc.status === 'revoked' && doc.revocation_reason && (
-                      <p className="text-red-600"><span className="font-medium">Alasan dicabut:</span> {doc.revocation_reason}</p>
-                    )}
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2.5">
+                      <h2 className="font-semibold text-base text-brand-900">{doc.doc_title}</h2>
+                      <StatusBadge status={doc.status} />
+                    </div>
+                    <div className="text-xs text-muted space-y-1 pt-1">
+                      <div className="flex items-center gap-1.5">
+                        <span>Verification ID:</span>
+                        <CopyText text={doc.verification_id} />
+                      </div>
+                      <p>
+                        <span>Tanggal Terbit: </span>
+                        <span className="text-ink font-medium">
+                          {doc.issued_at
+                            ? new Date(doc.issued_at).toLocaleDateString('id-ID', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                              })
+                            : '-'}
+                        </span>
+                      </p>
+                      {doc.status === 'revoked' && doc.revocation_reason && (
+                        <p className="text-red-700 font-medium">
+                          Alasan dicabut: {doc.revocation_reason}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-3 w-full sm:w-auto">
-                <Link
-                  to={`/verify/${doc.verification_id}`}
-                  className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  Verify Page
-                </Link>
-                <button
-                  onClick={() => handleDownload(doc)}
-                  className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2 bg-indigo-600 rounded-lg text-sm font-medium text-white hover:bg-indigo-700 transition-colors shadow-sm"
-                >
-                  <Download className="w-4 h-4" />
-                  Download
-                </button>
-              </div>
-
-            </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <Link to={`/verify/${doc.verification_id}`}>
+                    <Button variant="secondary" size="sm" icon={ShieldCheck}>
+                      Halaman Verifikasi
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={Download}
+                    onClick={() => handleDownload(doc)}
+                  >
+                    Unduh Berkas
+                  </Button>
+                </div>
+              </Card>
             );
           })}
         </div>

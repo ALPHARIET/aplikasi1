@@ -49,6 +49,19 @@ const DocumentModel = {
     return rows[0];
   },
 
+  // Cari dokumen aktif (issued, belum revoked) untuk mahasiswa tertentu
+  getActiveByStudentId: async (studentId) => {
+    const query = `
+      SELECT verification_id, doc_title, doc_type, issued_at
+      FROM documents
+      WHERE student_id = ? AND status = 'issued'
+      ORDER BY issued_at DESC
+      LIMIT 1
+    `;
+    const [rows] = await db.query(query, [studentId]);
+    return rows[0];
+  },
+
   // Simpan dokumen baru ke database (sebelum di-issue ke blockchain)
   create: async (docData) => {
     const { 
@@ -88,6 +101,18 @@ const DocumentModel = {
       WHERE verification_id = ?
     `;
     const [result] = await db.query(query, [reason, verificationId]);
+    return result.affectedRows;
+  },
+
+  // Ambil dokumen berdasarkan ID primary key
+  getById: async (id) => {
+    const [rows] = await db.query('SELECT * FROM documents WHERE id = ?', [id]);
+    return rows[0];
+  },
+
+  // Hapus dokumen dari database (Admin only)
+  deleteById: async (id) => {
+    const [result] = await db.query('DELETE FROM documents WHERE id = ?', [id]);
     return result.affectedRows;
   }
 };

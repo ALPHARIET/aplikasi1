@@ -3,11 +3,22 @@ const StudentModel = require('../models/studentModel');
 const HashService = require('../utils/hashService');
 const BlockchainService = require('../services/blockchainService');
 const DocumentComparator = require('../services/documentComparator');
-const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
 
 const DocumentController = {
+  // 0. Cek apakah mahasiswa sudah punya dokumen aktif (dipanggil sebelum issue)
+  checkExisting: async (req, res) => {
+    try {
+      const { studentId } = req.params;
+      const existing = await DocumentModel.getActiveByStudentId(studentId);
+      res.json({ hasExisting: !!existing, existing: existing || null });
+    } catch (error) {
+      console.error('Check Existing Error:', error);
+      res.status(500).json({ error: 'Failed to check existing document' });
+    }
+  },
+
   // 1. Upload dan Issue Dokumen ke Blockchain
   uploadAndIssue: async (req, res) => {
     try {
@@ -50,24 +61,17 @@ const DocumentController = {
       // 3. Issue ke Blockchain
       const bcReceipt = await BlockchainService.issueDocument(verificationId, fileHash);
 
-      // 4. Generate QR Code
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-      const verifyUrl = `${frontendUrl}/verify/${verificationId}`;
-      const qrPath = path.join(__dirname, '../../../uploads', `${verificationId}-qr.png`);
-
-      await QRCode.toFile(qrPath, verifyUrl, {
-        color: { dark: '#000000', light: '#FFFFFF' }
-      });
-
-      // 5. Update status di database menjadi "issued"
-      const qrRelativePath = qrPath.replace(/\\/g, '/');
+      // 4. Update status di database menjadi "issued"
       await DocumentModel.updateIssueStatus(
         verificationId,
         bcReceipt.txHash,
         bcReceipt.blockNumber,
         bcReceipt.issuer,
-        qrRelativePath
+        null
       );
+
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const verifyUrl = `${frontendUrl}/verify/${verificationId}`;
 
       res.status(201).json({
         message: 'Document successfully issued on blockchain',
@@ -299,6 +303,39 @@ const DocumentController = {
     } catch (error) {
       console.error('Get My Docs Error:', error);
       res.status(500).json({ error: 'Failed to fetch your documents' });
+    }
+  },
+
+  // 8. Delete Dokumen dari database (Admin only - hanya untuk dokumen berstatus 'revoked')
+  deleteDocument: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const doc = await DocumentModel.getById(id);
+      if (!doc) {
+        return res.status(404).json({ error: 'Dokumen tidak ditemukan' });
+      }
+
+      // Validasi: hanya dokumen yang sudah di-revoke yang boleh dihapus
+      if (doc.status !== 'revoked') {
+        return res.status(400).json({ 
+          error: 'Dokumen hanya dapat dihapus jika statusnya sudah di-revoke.' 
+        });
+      }
+
+      // Hapus file fisik dokumen jika ada
+      if (doc.file_path && fs.existsSync(doc.file_path)) {
+        try {
+          fs.unlinkSync(doc.file_path);
+        } catch (fileErr) {
+          console.warn('Failed to delete physical file:', fileErr.message);
+        }
+      }
+
+      await DocumentModel.deleteById(id);
+      res.json({ message: 'Dokumen yang telah di-revoke berhasil dihapus' });
+    } catch (error) {
+      console.error('Delete Document Error:', error);
+      res.status(500).json({ error: 'Gagal menghapus dokumen' });
     }
   }
 };
