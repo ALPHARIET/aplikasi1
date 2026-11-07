@@ -95,7 +95,6 @@ contract DocumentRegistry is Ownable {
         require(!documents[docId].exists, "Document already exists");
         require(docHash != bytes32(0), "Invalid document hash");
         require(bytes(docId).length > 0, "Document ID cannot be empty");
-
         documents[docId] = Document({
             documentHash: docHash,
             issuer: msg.sender,
@@ -103,9 +102,7 @@ contract DocumentRegistry is Ownable {
             isActive: true,
             exists: true
         });
-
         totalDocuments++;
-
         emit DocumentIssued(docId, docHash, msg.sender, block.timestamp);
     }
 

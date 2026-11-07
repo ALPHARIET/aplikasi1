@@ -17,9 +17,11 @@ router.get('/my-documents', DocumentController.getMyDocuments);
 router.get('/:verificationId/download', DocumentController.download);
 
 // Admin routes
+router.get('/check-existing/:studentId', isAdmin, DocumentController.checkExisting);
 router.post('/issue', isAdmin, upload.single('document'), DocumentController.uploadAndIssue);
 router.post('/revoke/:verificationId', isAdmin, DocumentController.revoke);
 router.get('/', isAdmin, DocumentController.getAll);
+router.delete('/:id', isAdmin, DocumentController.deleteDocument);
 
 // OCR / Scanner route
 router.post('/scan', isAdmin, upload.single('document'), ScannerController.scanDocument);
