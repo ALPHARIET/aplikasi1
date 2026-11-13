@@ -6,6 +6,12 @@ import {
   Eye,
   Trash2,
   AlertCircle,
+  KeyRound,
+  EyeOff,
+  Dices,
+  CheckCircle2,
+  Copy,
+  Lock,
 } from 'lucide-react';
 import api from '../../services/api';
 import PageHeader from '../../components/ui/PageHeader';
@@ -15,6 +21,7 @@ import DataTable, { TableHead, TableBody, TableRow, TableHeaderCell, TableCell }
 import Drawer from '../../components/ui/Drawer';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
+import CopyText from '../../components/ui/CopyText';
 import { SkeletonTableRow } from '../../components/ui/Skeleton';
 
 export default function StudentsManager() {
@@ -27,6 +34,7 @@ export default function StudentsManager() {
   const [isAddDrawerOpen, setIsAddDrawerOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
     studentIdNumber: '',
@@ -37,8 +45,16 @@ export default function StudentsManager() {
     graduationYear: '',
   });
 
+  // Modal Konfirmasi Kredensial Baru Dibuat (hanya tampil sekali)
+  const [newCredentials, setNewCredentials] = useState(null);
+
   // Modal Detail Mahasiswa
   const [selectedStudent, setSelectedStudent] = useState(null);
+
+  // Modal Reset Kata Sandi
+  const [resetTarget, setResetTarget] = useState(null);
+  const [resetting, setResetting] = useState(false);
+  const [resetResult, setResetResult] = useState(null);
 
   // Modal Konfirmasi Hapus
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -62,6 +78,13 @@ export default function StudentsManager() {
     fetchStudents();
   }, []);
 
+  const handleGenerateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    const pwd = Array.from({ length: 8 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+    setFormData((prev) => ({ ...prev, password: pwd }));
+    setShowPassword(true);
+  };
+
   const handleOpenAddDrawer = () => {
     setFormData({
       fullName: '',
@@ -73,6 +96,7 @@ export default function StudentsManager() {
       graduationYear: '',
     });
     setFormError('');
+    setShowPassword(false);
     setIsAddDrawerOpen(true);
   };
 
@@ -85,11 +109,25 @@ export default function StudentsManager() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError('');
+
+    if (formData.password.length < 6) {
+      setFormError('Kata sandi harus terdiri dari minimal 6 karakter.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
       await api.post('/students', formData);
       setIsAddDrawerOpen(false);
+      // Tampilkan kartu kredensial sekali kepada admin untuk disampaikan ke mahasiswa
+      setNewCredentials({
+        name: formData.fullName,
+        nim: formData.studentIdNumber,
+        email: formData.email,
+        password: formData.password,
+      });
+
       setFormData({
         fullName: '',
         studentIdNumber: '',
@@ -104,6 +142,24 @@ export default function StudentsManager() {
       setFormError(err.response?.data?.error || 'Gagal menambahkan data mahasiswa. Silakan periksa kembali formulir.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleConfirmResetPassword = async () => {
+    if (!resetTarget) return;
+    setResetting(true);
+    try {
+      const res = await api.put(`/students/${resetTarget.id}/password`);
+      setResetResult({
+        name: resetTarget.full_name,
+        nim: resetTarget.student_id_number,
+        newPassword: res.data.newPassword,
+      });
+      setResetTarget(null);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal mereset kata sandi mahasiswa');
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -136,7 +192,7 @@ export default function StudentsManager() {
     <div className="space-y-6">
       <PageHeader
         title="Kelola Mahasiswa"
-        description="Daftar mahasiswa terdaftar untuk penerbitan ijazah dan transkrip nilai akademik."
+        description="Daftar mahasiswa terdaftar untuk akun portal dan penerbitan transkrip nilai akademik."
         badge={
           <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-100 text-brand-700">
             {students.length} Mahasiswa
@@ -158,10 +214,10 @@ export default function StudentsManager() {
         </div>
       )}
 
-      {/* Search Bar Selebar Penuh */}
-      <div className="w-full">
+      {/* Baris Pencarian */}
+      <div className="max-w-md">
         <Input
-          placeholder="Cari berdasarkan nama, NIM, fakultas, program studi, atau email..."
+          placeholder="Cari berdasarkan nama, NIM, fakultas, atau prodi..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           icon={Search}
@@ -169,7 +225,7 @@ export default function StudentsManager() {
         />
       </div>
 
-      {/* Tabel Selebar Penuh */}
+      {/* Tabel Mahasiswa */}
       <DataTable
         footer={
           <span>
@@ -180,37 +236,36 @@ export default function StudentsManager() {
       >
         <TableHead>
           <tr>
-            <TableHeaderCell className="w-32">NIM</TableHeaderCell>
-            <TableHeaderCell>Nama Lengkap</TableHeaderCell>
-            <TableHeaderCell>Fakultas</TableHeaderCell>
-            <TableHeaderCell>Program Studi</TableHeaderCell>
-            <TableHeaderCell>Email</TableHeaderCell>
-            <TableHeaderCell className="text-right w-24">Aksi</TableHeaderCell>
+            <TableHeaderCell>Mahasiswa</TableHeaderCell>
+            <TableHeaderCell>NIM</TableHeaderCell>
+            <TableHeaderCell>Fakultas / Prodi</TableHeaderCell>
+            <TableHeaderCell>Tahun Lulus</TableHeaderCell>
+            <TableHeaderCell className="text-right w-36">Aksi</TableHeaderCell>
           </tr>
         </TableHead>
         <TableBody>
           {loading ? (
             <>
-              <SkeletonTableRow columns={6} />
-              <SkeletonTableRow columns={6} />
-              <SkeletonTableRow columns={6} />
-              <SkeletonTableRow columns={6} />
+              <SkeletonTableRow columns={5} />
+              <SkeletonTableRow columns={5} />
+              <SkeletonTableRow columns={5} />
+              <SkeletonTableRow columns={5} />
             </>
           ) : filteredStudents.length === 0 ? (
             <tr>
-              <td colSpan="6" className="py-12">
+              <td colSpan="5" className="py-12">
                 <EmptyState
                   icon={Users}
                   title="Tidak ada mahasiswa ditemukan"
                   description={
                     search
-                      ? `Tidak ada hasil yang cocok dengan kata kunci "${search}".`
-                      : 'Belum ada mahasiswa yang ditambahkan ke sistem.'
+                      ? 'Tidak ada data mahasiswa yang cocok dengan kata kunci pencarian.'
+                      : 'Belum ada data mahasiswa terdaftar. Klik tombol Tambah Mahasiswa untuk mendaftarkan akun baru.'
                   }
                   action={
                     !search && (
                       <Button variant="primary" size="sm" icon={UserPlus} onClick={handleOpenAddDrawer}>
-                        Tambah Mahasiswa Sekarang
+                        Tambah Mahasiswa Baru
                       </Button>
                     )
                   }
@@ -218,32 +273,36 @@ export default function StudentsManager() {
               </td>
             </tr>
           ) : (
-            filteredStudents.map((student) => (
-              <TableRow key={student.id}>
-                <TableCell className="font-mono text-xs font-semibold text-brand-900">
-                  {student.student_id_number}
+            filteredStudents.map((s) => (
+              <TableRow key={s.id}>
+                <TableCell>
+                  <span className="font-semibold text-brand-900 block text-xs">
+                    {s.full_name}
+                  </span>
+                  <span className="text-[11px] text-muted block mt-0.5">
+                    {s.email}
+                  </span>
                 </TableCell>
                 <TableCell>
-                  <span className="font-medium text-ink block">{student.full_name}</span>
-                  {student.graduation_year && (
-                    <span className="text-[11px] text-muted block">Lulus {student.graduation_year}</span>
-                  )}
+                  <span className="font-mono text-xs font-semibold text-ink bg-canvas px-2 py-0.5 rounded border border-border">
+                    {s.student_id_number}
+                  </span>
                 </TableCell>
-                <TableCell className="text-xs text-muted">
-                  {student.faculty || '-'}
+                <TableCell>
+                  <span className="text-xs text-ink block">{s.faculty}</span>
+                  <span className="text-[11px] text-muted block">{s.program || '-'}</span>
                 </TableCell>
-                <TableCell className="text-xs text-muted">
-                  {student.program || '-'}
-                </TableCell>
-                <TableCell className="text-xs text-muted font-mono">
-                  {student.email}
+                <TableCell>
+                  <span className="text-xs text-ink">
+                    {s.graduation_year || <span className="text-muted italic">Aktif</span>}
+                  </span>
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex items-center justify-end gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setSelectedStudent(student)}
-                      aria-label={`Lihat detail ${student.full_name}`}
+                      onClick={() => setSelectedStudent(s)}
+                      aria-label="Lihat detail mahasiswa"
                       title="Lihat Detail"
                       className="p-1.5 rounded-lg bg-white border border-[#CBD5E1] text-[#334155] hover:bg-[#E6EAFB] hover:text-[#151B54] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2B3FA8]"
                     >
@@ -251,10 +310,19 @@ export default function StudentsManager() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setDeleteTarget(student)}
-                      aria-label={`Hapus ${student.full_name}`}
+                      onClick={() => setResetTarget(s)}
+                      aria-label="Reset kata sandi mahasiswa"
+                      title="Reset Kata Sandi"
+                      className="p-1.5 rounded-lg bg-white border border-[#CBD5E1] text-[#D97706] hover:bg-[#FEF3C7] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706]"
+                    >
+                      <KeyRound className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(s)}
+                      aria-label="Hapus data mahasiswa"
                       title="Hapus Mahasiswa"
-                      className="p-1.5 rounded-lg bg-white border-[1.5px] border-[#B91C1C] text-[#B91C1C] hover:bg-[#FEF2F2] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B91C1C]"
+                      className="p-1.5 rounded-lg bg-white border border-[#CBD5E1] text-[#334155] hover:bg-[#FEF2F2] hover:text-[#B91C1C] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B91C1C]"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -291,20 +359,19 @@ export default function StudentsManager() {
         }
       >
         {formError && (
-          <div className="p-3.5 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2.5 text-xs text-red-700">
+          <div className="p-3.5 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2.5 text-xs text-red-700 mb-4">
             <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
             <span>{formError}</span>
           </div>
         )}
 
-        {/* Form dengan perlindungan anti-autofill */}
         <form
           id="add-student-form"
           onSubmit={handleSubmit}
           autoComplete="off"
           className="space-y-4"
         >
-          {/* Hidden inputs to prevent aggressive browser credential manager autofill */}
+          {/* Hidden inputs to prevent browser autofill */}
           <input type="text" style={{ display: 'none' }} tabIndex="-1" readOnly />
           <input type="password" style={{ display: 'none' }} tabIndex="-1" readOnly />
 
@@ -326,7 +393,7 @@ export default function StudentsManager() {
             value={formData.studentIdNumber}
             onChange={(e) => setFormData({ ...formData, studentIdNumber: e.target.value })}
             autoComplete="off"
-            hint="NIM akan digunakan sebagai identitas akun mahasiswa."
+            hint="NIM akan digunakan sebagai identitas akun mahasiswa saat masuk portal."
           />
 
           <Input
@@ -340,17 +407,41 @@ export default function StudentsManager() {
             autoComplete="off"
           />
 
-          <Input
-            label="Kata Sandi Login Mahasiswa"
-            type="password"
-            required
-            name="new_student_secret_pass"
-            placeholder="Minimal 6 karakter"
-            value={formData.password}
-            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-            autoComplete="new-password"
-            hint="Kata sandi sementara untuk mahasiswa masuk ke portal."
-          />
+          <div className="space-y-1">
+            <Input
+              label="Kata Sandi Login Mahasiswa"
+              type={showPassword ? 'text' : 'password'}
+              required
+              name="new_student_secret_pass"
+              placeholder="Minimal 6 karakter"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              autoComplete="new-password"
+              hint="Kata sandi sementara untuk mahasiswa masuk ke portal."
+              rightSlot={
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                    className="p-1 rounded-md text-muted hover:text-ink transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              }
+            />
+            <div className="pt-1 flex justify-end">
+              <button
+                type="button"
+                onClick={handleGenerateRandomPassword}
+                className="text-xs text-brand-600 hover:text-brand-900 font-medium inline-flex items-center gap-1.5 transition-colors"
+              >
+                <Dices className="w-3.5 h-3.5" />
+                <span>Buat kata sandi acak</span>
+              </button>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
@@ -380,12 +471,108 @@ export default function StudentsManager() {
             value={formData.graduationYear}
             onChange={(e) => setFormData({ ...formData, graduationYear: e.target.value })}
             autoComplete="off"
-            hint="Kosongkan jika mahasiswa masih aktif."
+            hint="Kosongkan jika mahasiswa masih berstatus aktif."
           />
         </form>
       </Drawer>
 
-      {/* Drawer Detail Mahasiswa */}
+      {/* Modal Kredensial Baru Dibuat (Hanya tampil sekali) */}
+      {newCredentials && (
+        <div className="fixed inset-0 bg-brand-950/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface rounded-xl shadow-2xl max-w-md w-full p-6 border border-border space-y-4">
+            <div className="flex items-center gap-3 text-emerald-700">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-brand-900">Mahasiswa Berhasil Didaftarkan!</h3>
+                <p className="text-xs text-muted">Kredensial login portal mahasiswa telah dibuat.</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-canvas rounded-lg border border-border space-y-2.5 text-xs">
+              <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">
+                Informasi Masuk Mahasiswa:
+              </p>
+              <div className="flex justify-between items-center py-1 border-b border-border">
+                <span className="text-muted">Nama:</span>
+                <span className="font-semibold text-ink">{newCredentials.name}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-border">
+                <span className="text-muted">NIM (Username):</span>
+                <div className="flex items-center gap-1.5 font-mono font-bold text-brand-900">
+                  <span>{newCredentials.nim}</span>
+                  <CopyText text={newCredentials.nim} />
+                </div>
+              </div>
+              <div className="flex justify-between items-center py-1">
+                <span className="text-muted">Kata Sandi:</span>
+                <div className="flex items-center gap-1.5 font-mono font-bold text-brand-900">
+                  <span>{newCredentials.password}</span>
+                  <CopyText text={newCredentials.password} />
+                </div>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-amber-800 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+              ⚠️ <strong>Penting:</strong> Salin NIM dan kata sandi di atas dan sampaikan kepada mahasiswa. Kata sandi ini hanya ditampilkan sekali.
+            </p>
+
+            <Button
+              variant="primary"
+              className="w-full"
+              onClick={() => setNewCredentials(null)}
+            >
+              Saya Sudah Menyalin Kredensial
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Hasil Reset Kata Sandi */}
+      {resetResult && (
+        <div className="fixed inset-0 bg-brand-950/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface rounded-xl shadow-2xl max-w-md w-full p-6 border border-border space-y-4">
+            <div className="flex items-center gap-3 text-amber-700">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <KeyRound className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-brand-900">Kata Sandi Berhasil Direset</h3>
+                <p className="text-xs text-muted">Berikan kata sandi baru ini kepada mahasiswa.</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-canvas rounded-lg border border-border space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted">Mahasiswa:</span>
+                <span className="font-semibold text-ink">{resetResult.name} ({resetResult.nim})</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-border">
+                <span className="text-muted">Kata Sandi Baru:</span>
+                <div className="flex items-center gap-1.5 font-mono font-bold text-base text-brand-900">
+                  <span>{resetResult.newPassword}</span>
+                  <CopyText text={resetResult.newPassword} />
+                </div>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-muted">
+              Mahasiswa disarankan segera mengubah kata sandinya setelah berhasil masuk ke portal.
+            </p>
+
+            <Button
+              variant="primary"
+              className="w-full"
+              onClick={() => setResetResult(null)}
+            >
+              Selesai & Tutup
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Detail Mahasiswa */}
       <Drawer
         isOpen={!!selectedStudent}
         onClose={() => setSelectedStudent(null)}
@@ -445,17 +632,27 @@ export default function StudentsManager() {
         )}
       </Drawer>
 
+      {/* Dialog Konfirmasi Reset Kata Sandi */}
+      <ConfirmDialog
+        isOpen={!!resetTarget}
+        title="Reset Kata Sandi Mahasiswa?"
+        message={`Apakah Anda yakin ingin mereset kata sandi mahasiswa "${resetTarget?.full_name}" (NIM: ${resetTarget?.student_id_number})? Kata sandi baru acak akan dibuat.`}
+        confirmLabel={resetting ? 'Mereset...' : 'Ya, Reset Kata Sandi'}
+        cancelLabel="Batal"
+        onConfirm={handleConfirmResetPassword}
+        onCancel={() => setResetTarget(null)}
+      />
+
       {/* Dialog Konfirmasi Hapus Mahasiswa */}
       <ConfirmDialog
         isOpen={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
+        title="Hapus Data Mahasiswa?"
+        message={`Apakah Anda yakin ingin menghapus data mahasiswa "${deleteTarget?.full_name}" (NIM: ${deleteTarget?.student_id_number})? Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel={deleting ? 'Menghapus...' : 'Ya, Hapus'}
+        cancelLabel="Batal"
+        danger
         onConfirm={handleDelete}
-        title="Hapus Mahasiswa"
-        description={`Apakah Anda yakin ingin menghapus data mahasiswa "${deleteTarget?.full_name}"? Semua data dan riwayat terkait akan dibersihkan dari sistem. Tindakan ini tidak dapat dibatalkan.`}
-        confirmText="Hapus Mahasiswa"
-        cancelText="Batal"
-        variant="danger"
-        loading={deleting}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );

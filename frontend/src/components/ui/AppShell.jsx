@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -10,20 +10,46 @@ import {
   Menu,
   X,
   ShieldCheck,
+  ClipboardList,
+  UserCheck,
 } from 'lucide-react';
 import BrandLogo from '../BrandLogo';
+import api from '../../services/api';
 
-const NAVIGATION = [
+const ADMIN_NAVIGATION = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard, exact: true },
   { name: 'Mahasiswa', href: '/admin/students', icon: Users },
+  { name: 'Permintaan Transkrip', href: '/admin/transcript-requests', icon: ClipboardList, hasBadge: true },
   { name: 'Dokumen', href: '/admin/documents', icon: FileText },
   { name: 'Terbitkan Dokumen', href: '/admin/issue', icon: FilePlus },
 ];
 
-export default function AppShell({ children }) {
+const STUDENT_NAVIGATION = [
+  { name: 'Dashboard', href: '/student', icon: LayoutDashboard, exact: true },
+  { name: 'Permintaan Transkrip', href: '/student/requests', icon: ClipboardList },
+  { name: 'Dokumen Saya', href: '/student/documents', icon: FileText },
+  { name: 'Profil dan Keamanan', href: '/student/profile', icon: UserCheck },
+];
+
+export default function AppShell({ children, navigation }) {
   const { logout, user } = useAuth();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const isStudent = user?.role === 'student';
+  const navItems = navigation || (isStudent ? STUDENT_NAVIGATION : ADMIN_NAVIGATION);
+  const portalTitle = isStudent ? 'Portal Mahasiswa' : 'Admin Portal';
+  const homeLink = isStudent ? '/student' : '/admin';
+
+  // Ambil jumlah pending requests untuk admin
+  useEffect(() => {
+    if (!isStudent && user) {
+      api.get('/admin/transcript-requests/pending-count')
+        .then((res) => setPendingCount(res.data.count || 0))
+        .catch(() => {});
+    }
+  }, [isStudent, user, location.pathname]);
 
   const isItemActive = (item) => {
     if (item.exact) {
@@ -34,16 +60,16 @@ export default function AppShell({ children }) {
 
   const navContent = (
     <div className="flex flex-col h-full bg-[#0B0F33] text-white select-none">
-      {/* Brand Header dengan tinggi cukup dan padding lega agar tidak terpotong */}
+      {/* Brand Header */}
       <div className="h-20 flex items-center px-6 border-b border-white/10 shrink-0">
-        <Link to="/admin" className="flex items-center gap-3.5 group" onClick={() => setMobileOpen(false)}>
+        <Link to={homeLink} className="flex items-center gap-3.5 group" onClick={() => setMobileOpen(false)}>
           <BrandLogo className="h-10 w-auto object-contain shrink-0" />
           <div className="flex flex-col leading-tight">
             <span className="font-bold text-lg tracking-tight text-white group-hover:text-slate-100 transition-colors">
               BlockCertify
             </span>
             <span className="text-[11px] text-slate-300 font-medium tracking-wider uppercase">
-              Admin Portal
+              {portalTitle}
             </span>
           </div>
         </Link>
@@ -54,7 +80,7 @@ export default function AppShell({ children }) {
         <p className="px-3 pb-2 text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider">
           MENU UTAMA
         </p>
-        {NAVIGATION.map((item) => {
+        {navItems.map((item) => {
           const active = isItemActive(item);
           const Icon = item.icon;
           return (
@@ -62,14 +88,21 @@ export default function AppShell({ children }) {
               key={item.name}
               to={item.href}
               onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2B3FA8] ${
+              className={`flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2B3FA8] ${
                 active
                   ? 'bg-[#1E2A78] text-white font-semibold shadow-sm'
                   : 'text-[#E2E8F0] font-medium hover:text-white hover:bg-white/[0.08]'
               }`}
             >
-              <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-white' : 'text-[#CBD5E1]'}`} />
-              <span>{item.name}</span>
+              <div className="flex items-center gap-3">
+                <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-white' : 'text-[#CBD5E1]'}`} />
+                <span>{item.name}</span>
+              </div>
+              {item.hasBadge && pendingCount > 0 && (
+                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-500 text-slate-950">
+                  {pendingCount}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -90,18 +123,18 @@ export default function AppShell({ children }) {
         </div>
       </div>
 
-      {/* Admin Profile & Logout di Bagian Bawah */}
+      {/* User Profile & Logout */}
       <div className="p-4 border-t border-white/10 shrink-0 bg-[#0B0F33]">
         <div className="flex items-center gap-3 px-2 py-2 mb-2">
           <div className="w-9 h-9 rounded-full bg-[#1E2A78] flex items-center justify-center text-white font-bold text-sm border border-[#CBD5E1]/30 shrink-0">
-            {user?.name?.charAt(0)?.toUpperCase() || 'A'}
+            {user?.name?.charAt(0)?.toUpperCase() || (isStudent ? 'M' : 'A')}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-white truncate">
-              {user?.name || 'Administrator'}
+              {user?.name || (isStudent ? 'Mahasiswa' : 'Administrator')}
             </p>
             <p className="text-xs text-[#94A3B8] truncate">
-              {user?.email || 'admin@univ.edu'}
+              {user?.student?.student_id_number ? `NIM: ${user.student.student_id_number}` : (user?.email || '')}
             </p>
           </div>
         </div>

@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, User, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import BrandLogo from '../components/BrandLogo';
 import Button from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('student'); // 'student' atau 'admin'
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -15,20 +16,30 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  const handleSwitchRole = (newRole) => {
+    setRole(newRole);
+    setIdentifier('');
+    setPassword('');
+    setError('');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
 
     try {
-      const user = await login(email, password);
+      const user = await login(identifier, password);
       if (user.role === 'admin') {
         navigate('/admin');
       } else {
         navigate('/student');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Email atau kata sandi tidak valid. Silakan coba lagi.');
+      const defaultMsg = role === 'student'
+        ? 'NIM atau kata sandi salah. Silakan periksa kembali.'
+        : 'Email atau kata sandi salah. Silakan coba lagi.';
+      setError(err.response?.data?.error || defaultMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -37,15 +48,15 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-canvas flex flex-col lg:flex-row">
       {/* Panel Kiri - Branding Institusional (Desktop) */}
-      <div className="hidden lg:flex lg:w-1/2 bg-brand-950 text-white flex-col justify-between p-12 lg:p-16 border-r border-white/10 select-none">
+      <div className="hidden lg:flex lg:w-1/2 bg-[#0B0F33] text-white flex-col justify-between p-12 lg:p-16 border-r border-white/10 select-none">
         <div>
           <div className="flex items-center gap-3.5">
             <BrandLogo className="h-12 w-auto object-contain" />
             <div>
-              <span className="font-semibold text-xl tracking-tight text-white block">
+              <span className="font-bold text-xl tracking-tight text-white block">
                 BlockCertify
               </span>
-              <span className="text-xs text-slate-400 tracking-wider uppercase font-medium">
+              <span className="text-xs text-slate-300 tracking-wider uppercase font-medium">
                 Universitas Bengkulu
               </span>
             </div>
@@ -53,14 +64,14 @@ export default function Login() {
         </div>
 
         <div className="max-w-md my-auto py-12">
-          <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-brand-700/80 text-brand-100 border border-brand-500/30 mb-6">
+          <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#1E2A78] text-white border border-[#CBD5E1]/30 mb-6">
             Sistem Verifikasi Berbasis Blockchain
           </div>
-          <h1 className="text-3xl lg:text-4xl font-semibold text-white tracking-tight leading-tight mb-4">
-            Registri Dokumen Akademik yang Tepercaya, Aman, dan Permanen.
+          <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight leading-tight mb-4">
+            Registri Transkrip Nilai Akademik yang Sah, Aman, dan Permanen.
           </h1>
           <p className="text-sm text-slate-300 leading-relaxed">
-            Menjamin keaslian ijazah dan transkrip nilai lulusan Universitas Bengkulu dengan pencatatan kriptografi anti-pemalsuan pada smart contract blockchain.
+            Menjamin keaslian transkrip nilai lulusan Universitas Bengkulu dengan pencatatan kriptografi anti-pemalsuan pada smart contract ledger blockchain.
           </p>
         </div>
 
@@ -76,36 +87,79 @@ export default function Login() {
           {/* Mobile Header Branding */}
           <div className="lg:hidden flex flex-col items-center text-center mb-8">
             <BrandLogo className="h-16 w-auto object-contain mb-3" />
-            <h1 className="text-2xl font-semibold text-brand-900 tracking-tight">BlockCertify</h1>
+            <h1 className="text-2xl font-bold text-brand-900 tracking-tight">BlockCertify</h1>
             <p className="text-xs text-muted mt-1">Registri Dokumen Akademik Universitas Bengkulu</p>
           </div>
 
           <div className="bg-surface rounded-xl border border-border p-8 shadow-sm">
+            {/* Pilihan Peran: Mahasiswa vs Administrator */}
+            <div className="flex rounded-lg bg-canvas p-1 border border-border mb-6">
+              <button
+                type="button"
+                onClick={() => handleSwitchRole('student')}
+                className={`flex-1 py-2 text-xs font-semibold rounded-md transition-colors ${
+                  role === 'student'
+                    ? 'bg-[#151B54] text-white shadow-sm'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                Portal Mahasiswa
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSwitchRole('admin')}
+                className={`flex-1 py-2 text-xs font-semibold rounded-md transition-colors ${
+                  role === 'admin'
+                    ? 'bg-[#151B54] text-white shadow-sm'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                Administrator
+              </button>
+            </div>
+
             <div className="mb-6">
-              <h2 className="text-xl font-semibold text-brand-900">Masuk ke Akun</h2>
+              <h2 className="text-xl font-bold text-brand-900">
+                {role === 'student' ? 'Masuk Portal Mahasiswa' : 'Masuk Administrator'}
+              </h2>
               <p className="text-xs text-muted mt-1">
-                Silakan masukkan alamat email dan kata sandi Anda.
+                {role === 'student'
+                  ? 'Silakan masukkan NIM dan kata sandi akun mahasiswa Anda.'
+                  : 'Silakan masukkan alamat email dan kata sandi admin Anda.'}
               </p>
             </div>
 
             {error && (
               <div className="mb-6 p-3.5 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2.5 text-xs text-red-700">
                 <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                <span className="leading-relaxed">{error}</span>
+                <span className="leading-relaxed font-medium">{error}</span>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
-              <Input
-                label="Alamat Email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="nama@univ.edu"
-                icon={Mail}
-                autoComplete="email"
-              />
+            <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+              {role === 'student' ? (
+                <Input
+                  label="Nomor Induk Mahasiswa (NIM)"
+                  required
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="Contoh: G1A022001"
+                  icon={User}
+                  autoComplete="username"
+                  hint="NIM terdaftar yang dibuatkan akun oleh admin."
+                />
+              ) : (
+                <Input
+                  label="Alamat Email Admin"
+                  type="email"
+                  required
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="admin@univ.edu"
+                  icon={Mail}
+                  autoComplete="email"
+                />
+              )}
 
               <Input
                 label="Kata Sandi"
@@ -140,10 +194,23 @@ export default function Login() {
                   className="w-full py-3 text-sm font-semibold"
                   loading={isSubmitting}
                 >
-                  {isSubmitting ? 'Memproses...' : 'Masuk'}
+                  {isSubmitting ? 'Memproses...' : (role === 'student' ? 'Masuk ke Portal' : 'Masuk sebagai Admin')}
                 </Button>
               </div>
             </form>
+
+            <div className="mt-5 text-center">
+              <button
+                type="button"
+                onClick={() => handleSwitchRole(role === 'student' ? 'admin' : 'student')}
+                className="text-xs text-brand-600 hover:text-brand-900 font-medium inline-flex items-center gap-1.5 transition-colors"
+              >
+                <span>
+                  {role === 'student' ? 'Beralih ke Login Administrator' : 'Beralih ke Login Mahasiswa (NIM)'}
+                </span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
             {/* Catatan demo khusus DEV */}
             {import.meta.env.DEV && (
@@ -152,6 +219,9 @@ export default function Login() {
                   <p className="font-semibold text-brand-900">Catatan Demo (Mode Pengembangan):</p>
                   <p>
                     <span className="font-medium text-ink">Admin:</span> admin@univ.edu / adminpassword123
+                  </p>
+                  <p>
+                    <span className="font-medium text-ink">Mahasiswa:</span> Login pakai NIM dan kata sandi yang dibuat di menu Kelola Mahasiswa.
                   </p>
                 </div>
               </div>
