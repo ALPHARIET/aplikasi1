@@ -1,5 +1,6 @@
 const DocumentModel = require('../models/documentModel');
 const StudentModel = require('../models/studentModel');
+const TranscriptRequestModel = require('../models/transcriptRequestModel');
 const HashService = require('../utils/hashService');
 const BlockchainService = require('../services/blockchainService');
 const DocumentComparator = require('../services/documentComparator');
@@ -26,7 +27,7 @@ const DocumentController = {
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
-      const { studentId, docType, docTitle } = req.body;
+      const { studentId, docType, docTitle, requestId } = req.body;
       if (!studentId || !docType || !docTitle) {
         // Hapus file yang terlanjur diupload jika validasi gagal
         fs.unlinkSync(req.file.path);
@@ -40,6 +41,22 @@ const DocumentController = {
         return res.status(404).json({ error: 'Student not found' });
       }
 
+      // Jika requestId disertakan, validasi kepemilikan dan statusnya
+      let transcriptReq = null;
+      if (requestId) {
+        transcriptReq = await TranscriptRequestModel.getById(requestId);
+        if (
+          !transcriptReq ||
+          Number(transcriptReq.student_id) !== Number(studentId) ||
+          transcriptReq.status !== 'pending'
+        ) {
+          fs.unlinkSync(req.file.path);
+          return res.status(400).json({
+            error: 'Permintaan transkrip tidak valid, bukan milik mahasiswa ini, atau tidak berstatus pending.'
+          });
+        }
+      }
+
       // Generate Verification ID (misal: DOC-2026-STUDENTID-RANDOM)
       const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
       const verificationId = `DOC-${new Date().getFullYear()}-${student.student_id_number}-${randomStr}`;
@@ -49,7 +66,7 @@ const DocumentController = {
 
       // 2. Simpan ke database dengan status "pending"
       const filePath = req.file.path.replace(/\\/g, '/'); // Normalize path
-      await DocumentModel.create({
+      const docInsertId = await DocumentModel.create({
         verificationId,
         studentId,
         docType,
@@ -69,6 +86,16 @@ const DocumentController = {
         bcReceipt.issuer,
         null
       );
+
+      // 5. Jika ada requestId dan blockchain sukses, ubah status permintaan menjadi 'issued'
+      if (requestId) {
+        await TranscriptRequestModel.markIssued(
+          requestId,
+          studentId,
+          docInsertId,
+          req.user.id
+        );
+      }
 
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       const verifyUrl = `${frontendUrl}/verify/${verificationId}`;

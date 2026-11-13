@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Upload,
   ScanLine,
@@ -22,14 +23,19 @@ import CopyText from '../../components/ui/CopyText';
 const DOCUMENT_TYPE = 'transkrip';
 
 export default function IssueDocument() {
+  const [searchParams] = useSearchParams();
+  const paramStudentId = searchParams.get('studentId') || '';
+  const paramRequestId = searchParams.get('requestId') || '';
+
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [file, setFile] = useState(null);
   const fileInputRef = useRef(null);
+  const [requestId, setRequestId] = useState(paramRequestId);
 
   const [formData, setFormData] = useState({
-    studentId: '',
+    studentId: paramStudentId,
     docTitle: '',
   });
 
@@ -176,6 +182,7 @@ export default function IssueDocument() {
         data.append('docTitle', formData.docTitle);
         data.append('document', file);
         data.append('transcriptData', JSON.stringify(transcriptData));
+        if (requestId) data.append('requestId', requestId);
         setPendingFormData(data);
         setDupDoc(checkRes.data.existing);
         setDupModal(true);
@@ -189,6 +196,7 @@ export default function IssueDocument() {
       data.append('docTitle', formData.docTitle);
       data.append('document', file);
       data.append('transcriptData', JSON.stringify(transcriptData));
+      if (requestId) data.append('requestId', requestId);
       await doIssue(data);
     } catch (err) {
       alert(err.response?.data?.error || 'Gagal memeriksa status dokumen mahasiswa.');
@@ -277,6 +285,14 @@ export default function IssueDocument() {
                 title="1. Informasi Dokumen"
                 description="Pilih mahasiswa penerima untuk menerbitkan transkrip nilai akademik."
               />
+
+              {requestId && (
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-center justify-between">
+                  <span>Menerbitkan transkrip untuk <strong>Permintaan Transkrip #{requestId}</strong>.</span>
+                  <span className="text-[11px] text-amber-700">Permintaan akan otomatis selesai setelah transaksi blockchain sukses.</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Select
                   label="Pilih Mahasiswa"

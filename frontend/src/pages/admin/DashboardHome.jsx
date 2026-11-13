@@ -10,6 +10,7 @@ import {
   Eye,
   ShieldCheck,
   UserPlus,
+  ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
@@ -27,6 +28,7 @@ export default function DashboardHome() {
   const { user } = useAuth();
   const [docs, setDocs] = useState([]);
   const [students, setStudents] = useState([]);
+  const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedDoc, setSelectedDoc] = useState(null);
@@ -37,13 +39,15 @@ export default function DashboardHome() {
       setLoading(true);
       setError('');
       try {
-        const [docsRes, studentsRes] = await Promise.all([
+        const [docsRes, studentsRes, pendingRes] = await Promise.all([
           api.get('/documents'),
           api.get('/students'),
+          api.get('/admin/transcript-requests/pending-count').catch(() => ({ data: { count: 0 } })),
         ]);
         if (isMounted) {
           setDocs(docsRes.data.documents || []);
           setStudents(studentsRes.data.students || []);
+          setPendingCount(pendingRes.data?.count || 0);
         }
       } catch (err) {
         if (isMounted) {
@@ -99,10 +103,11 @@ export default function DashboardHome() {
         </div>
       )}
 
-      {/* Grid 4 StatCards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Grid 5 StatCards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {loading ? (
           <>
+            <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
@@ -114,13 +119,21 @@ export default function DashboardHome() {
               label="TOTAL DOKUMEN"
               value={totalDocs}
               icon={FileText}
-              helperText="Ijazah dan transkrip terdaftar"
+              helperText="Transkrip terdaftar"
             />
             <StatCard
               label="TOTAL MAHASISWA"
               value={totalStudents}
               icon={Users}
-              helperText="Mahasiswa terdaftar di sistem"
+              helperText="Mahasiswa di sistem"
+            />
+            <StatCard
+              label="PERMINTAAN MENUNGGU"
+              value={pendingCount}
+              icon={ClipboardList}
+              iconBg="bg-amber-50"
+              iconColor="text-amber-600"
+              helperText="Permintaan transkrip pending"
             />
             <StatCard
               label="DOKUMEN VALID"
@@ -128,7 +141,7 @@ export default function DashboardHome() {
               icon={CheckCircle2}
               iconBg="bg-emerald-50"
               iconColor="text-emerald-600"
-              helperText="Aktif dan terverifikasi di blockchain"
+              helperText="Aktif di blockchain"
             />
             <StatCard
               label="DOKUMEN DICABUT"
@@ -136,7 +149,7 @@ export default function DashboardHome() {
               icon={ShieldAlert}
               iconBg="bg-red-50"
               iconColor="text-red-600"
-              helperText="Status revoked / dicabut"
+              helperText="Status dicabut / revoked"
             />
           </>
         )}
@@ -257,6 +270,30 @@ export default function DashboardHome() {
               />
               <div className="space-y-3">
                 <Link
+                  to="/admin/transcript-requests"
+                  className="flex items-center gap-3.5 p-3.5 rounded-xl border border-border hover:border-brand-500 hover:bg-brand-50 transition-all group"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                    <ClipboardList className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-brand-900 group-hover:text-brand-700">
+                        Permintaan Transkrip
+                      </p>
+                      {pendingCount > 0 && (
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-500 text-slate-950">
+                          {pendingCount}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted truncate">
+                      Tinjau dan proses permohonan transkrip nilai
+                    </p>
+                  </div>
+                </Link>
+
+                <Link
                   to="/admin/issue"
                   className="flex items-center gap-3.5 p-3.5 rounded-xl border border-border hover:border-brand-500 hover:bg-brand-50 transition-all group"
                 >
@@ -268,7 +305,7 @@ export default function DashboardHome() {
                       Terbitkan Dokumen
                     </p>
                     <p className="text-[11px] text-muted truncate">
-                      Unggah berkas ijazah atau transkrip ke blockchain
+                      Unggah berkas transkrip nilai ke blockchain
                     </p>
                   </div>
                 </Link>

@@ -46,32 +46,51 @@ const StudentController = {
         return res.status(409).json({ error: 'Email already exists' });
       }
 
+      // Check if NIM already exists
+      const existingStudent = await StudentModel.getByStudentIdNumber(studentIdNumber);
+      if (existingStudent) {
+        return res.status(409).json({ error: 'Student ID Number (NIM/NIS) already exists' });
+      }
+
       // 1. Create User account first
       const saltRounds = 10;
       const passwordHash = await bcrypt.hash(password, saltRounds);
       
-      const userId = await UserModel.create({
-        name: fullName,
-        email,
-        passwordHash,
-        role: 'student'
-      });
+      let userId;
+      try {
+        userId = await UserModel.create({
+          name: fullName,
+          email,
+          passwordHash,
+          role: 'student'
+        });
 
-      // 2. Create Student profile
-      const studentId = await StudentModel.create({
-        userId,
-        studentIdNumber,
-        fullName,
-        faculty,
-        program,
-        graduationYear
-      });
+        // 2. Create Student profile
+        const studentId = await StudentModel.create({
+          userId,
+          studentIdNumber,
+          fullName,
+          faculty,
+          program,
+          graduationYear
+        });
 
-      res.status(201).json({ 
-        message: 'Student created successfully',
-        studentId,
-        userId
-      });
+        return res.status(201).json({ 
+          message: 'Student created successfully',
+          studentId,
+          userId
+        });
+      } catch (innerErr) {
+        // Rollback user jika pembuatan student gagal
+        if (userId) {
+          try {
+            await UserModel.delete?.(userId) || await require('../config/database').query('DELETE FROM users WHERE id = ?', [userId]);
+          } catch (e) {
+            console.error('Failed to rollback user:', e);
+          }
+        }
+        throw innerErr;
+      }
 
     } catch (error) {
       // Handle duplicate student_id_number error (MySQL error code ER_DUP_ENTRY)
@@ -121,6 +140,36 @@ const StudentController = {
     } catch (error) {
       console.error('Delete Student Error:', error);
       res.status(500).json({ error: 'Failed to delete student' });
+    }
+  },
+
+  // Reset password mahasiswa oleh admin
+  resetPassword: async (req, res) => {
+    try {
+      const id = req.params.id;
+      let { newPassword } = req.body || {};
+
+      if (!newPassword || newPassword.trim().length < 6) {
+        // Jika tidak diberikan atau kurang dari 6 karakter, buat password acak 8 karakter
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+        newPassword = Array.from({ length: 8 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+      }
+
+      const saltRounds = 10;
+      const newHash = await bcrypt.hash(newPassword, saltRounds);
+
+      const success = await StudentModel.resetPassword(id, newHash);
+      if (!success) {
+        return res.status(404).json({ error: 'Mahasiswa tidak ditemukan' });
+      }
+
+      res.json({
+        message: 'Kata sandi mahasiswa berhasil direset',
+        newPassword
+      });
+    } catch (error) {
+      console.error('Reset Password Error:', error);
+      res.status(500).json({ error: 'Gagal mereset kata sandi mahasiswa' });
     }
   }
 };

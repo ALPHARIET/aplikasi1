@@ -15,12 +15,12 @@ export const AuthProvider = ({ children }) => {
       const token = localStorage.getItem('token');
       if (token) {
         try {
-          // Ambil data profile terbaru menggunakan token
           const response = await api.get('/auth/profile');
           setUser(response.data.user);
         } catch (error) {
-          console.error("Invalid token", error);
+          console.error('Invalid token', error);
           localStorage.removeItem('token');
+          setUser(null);
         }
       }
       setLoading(false);
@@ -29,8 +29,8 @@ export const AuthProvider = ({ children }) => {
     checkUserLoggedIn();
   }, []);
 
-  const login = async (email, password) => {
-    const response = await api.post('/auth/login', { email, password });
+  const login = async (identifier, password) => {
+    const response = await api.post('/auth/login', { identifier, password });
     localStorage.setItem('token', response.data.token);
     setUser(response.data.user);
     return response.data.user;

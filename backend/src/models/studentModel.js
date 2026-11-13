@@ -1,12 +1,12 @@
 const db = require('../config/database');
 
 const StudentModel = {
-  // Ambil semua data student beserta data usernya
+  // Ambil semua data student beserta data usernya (menggunakan LEFT JOIN agar student tanpa user tetap tampil)
   getAll: async () => {
     const query = `
-      SELECT s.*, u.email 
+      SELECT s.*, u.email, u.name 
       FROM students s
-      JOIN users u ON s.user_id = u.id
+      LEFT JOIN users u ON s.user_id = u.id
       ORDER BY s.created_at DESC
     `;
     const [rows] = await db.query(query);
@@ -16,18 +16,36 @@ const StudentModel = {
   // Ambil data student berdasarkan ID
   getById: async (id) => {
     const query = `
-      SELECT s.*, u.email 
+      SELECT s.*, u.email, u.name 
       FROM students s
-      JOIN users u ON s.user_id = u.id
+      LEFT JOIN users u ON s.user_id = u.id
       WHERE s.id = ?
     `;
     const [rows] = await db.query(query, [id]);
     return rows[0];
   },
 
-  // Ambil data student berdasarkan user_id (untuk login mahasiswa)
+  // Ambil data student berdasarkan student_id_number (NIM)
+  getByStudentIdNumber: async (studentIdNumber) => {
+    const query = `
+      SELECT s.*, u.email, u.name 
+      FROM students s
+      LEFT JOIN users u ON s.user_id = u.id
+      WHERE s.student_id_number = ?
+    `;
+    const [rows] = await db.query(query, [studentIdNumber]);
+    return rows[0];
+  },
+
+  // Ambil data student berdasarkan user_id (untuk login & profile mahasiswa)
   getByUserId: async (userId) => {
-    const [rows] = await db.query('SELECT * FROM students WHERE user_id = ?', [userId]);
+    const query = `
+      SELECT s.*, u.email, u.name 
+      FROM students s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.user_id = ?
+    `;
+    const [rows] = await db.query(query, [userId]);
     return rows[0];
   },
 
@@ -59,14 +77,36 @@ const StudentModel = {
     return result.affectedRows;
   },
 
-  // Hapus student (juga hapus user karena foreign key / cascade)
+  // Reset password mahasiswa oleh admin
+  resetPassword: async (studentId, newPasswordHash) => {
+    const student = await StudentModel.getById(studentId);
+    if (!student) return false;
+    
+    if (student.user_id) {
+      const [result] = await db.query('UPDATE users SET password_hash = ? WHERE id = ?', [
+        newPasswordHash,
+        student.user_id
+      ]);
+      return result.affectedRows > 0;
+    }
+    return false;
+  },
+
+  // Hapus student dari tabel students dan bersihkan akun usernya jika ada
   delete: async (id) => {
     const student = await StudentModel.getById(id);
     if (!student) return 0;
     
-    // Karena tabel documents ON DELETE CASCADE, dokumen akan terhapus.
-    // Tapi kita perlu menghapus User-nya agar bersih.
-    const [result] = await db.query('DELETE FROM users WHERE id = ?', [student.user_id]);
+    const userId = student.user_id;
+
+    // Hapus student terlebih dahulu dari tabel students
+    const [result] = await db.query('DELETE FROM students WHERE id = ?', [id]);
+
+    // Jika memiliki akun user, hapus juga akun usernya
+    if (userId) {
+      await db.query('DELETE FROM users WHERE id = ?', [userId]);
+    }
+
     return result.affectedRows;
   }
 };

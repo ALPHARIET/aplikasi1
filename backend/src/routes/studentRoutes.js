@@ -9,6 +9,7 @@ router.use(verifyToken);
 // Admin only routes
 router.post('/', isAdmin, StudentController.create);
 router.put('/:id', isAdmin, StudentController.update);
+router.put('/:id/password', isAdmin, StudentController.resetPassword);
 router.delete('/:id', isAdmin, StudentController.delete);
 
 // Shared routes (Admin can view all, maybe we want to restrict students to only view themselves later)
