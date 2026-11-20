@@ -135,7 +135,7 @@ Semua test memakai test runner bawaan Node (`node --test`), tanpa dependensi tam
 |---|---|---|
 | `cd blockchain && npm test` | 28 test smart contract | - |
 | `cd backend && npm run test:unit` | `uploadPath`, `hashService`, snapshot `documentComparator` | data demo (`npm run seed:demo`) |
-| `cd backend && npm test` | unit + integrasi API: login dan tab peran, register khusus admin, terbit, verifikasi (valid, diubah, tidak terdaftar, ID tertukar, dicabut), unduh, hapus | MySQL, Hardhat node + deploy, data demo |
+| `cd backend && npm test` | unit + integrasi API: login dan tab peran, register khusus admin, terbit, verifikasi (valid, diubah, tidak terdaftar, ID tertukar, dicabut), unduh, hapus, serta konsistensi saat blockchain gagal dan saat mahasiswa dihapus | MySQL, Hardhat node + deploy, data demo |
 | `cd frontend && npm test` | logika halaman verifikasi, `sha256Hex`, helper formulir terbit | - |
 | `cd frontend && npm run test:e2e` | Chrome headless: beranda, verifikasi asli/palsu, login salah tab, terbitkan + modal duplikat | semua layanan berjalan (Terminal 1-4) dan data demo |
 
