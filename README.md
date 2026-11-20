@@ -49,6 +49,8 @@ CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,h
 LOGIN_MAX_FAILS_PER_ACCOUNT=10
 LOGIN_MAX_FAILS_PER_IP=50
 LOGIN_LOCK_MINUTES=15
+# Batas pemeriksaan berkas publik (POST /documents/verify-file) per IP per menit
+VERIFY_FILE_MAX_PER_MINUTE=60
 ```
 
 > `OWNER_PRIVATE_KEY` harus milik akun yang men-deploy contract (Account #0), karena hanya owner yang boleh menerbitkan/mencabut dokumen.
@@ -147,7 +149,7 @@ Semua test memakai test runner bawaan Node (`node --test`), tanpa dependensi tam
 | Perintah | Isi | Butuh |
 |---|---|---|
 | `cd blockchain && npm test` | 28 test smart contract | - |
-| `cd backend && npm run test:unit` | `uploadPath`, `hashService`, `passwordPolicy`, `loginThrottle`, snapshot `documentComparator` | data demo (`npm run seed:demo`) |
+| `cd backend && npm run test:unit` | `uploadPath`, `hashService`, `passwordPolicy`, `loginThrottle`, `rateLimit`, snapshot `documentComparator` | data demo (`npm run seed:demo`) |
 | `cd backend && npm test` | unit + integrasi API: login dan tab peran, register khusus admin, terbit, verifikasi (valid, diubah, tidak terdaftar, ID tertukar, dicabut), unduh, hapus, konsistensi saat blockchain gagal dan saat mahasiswa dihapus, serta regresi keamanan (`security.test.js`: IDOR, penahan login, sesi dicabut, isi berkas, galat, CORS, header) | MySQL, Hardhat node + deploy, data demo |
 | `cd frontend && npm test` | logika halaman verifikasi, `sha256Hex`, helper formulir terbit | - |
 | `cd frontend && npm run test:e2e` | Chrome headless: beranda, verifikasi asli/palsu, login salah tab, terbitkan + modal duplikat | semua layanan berjalan (Terminal 1-4) dan data demo |

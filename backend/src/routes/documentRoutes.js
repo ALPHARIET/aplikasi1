@@ -4,10 +4,12 @@ const DocumentController = require('../controllers/documentController');
 const upload = require('../middleware/uploadMiddleware');
 const { checkFileSignature } = upload;
 const { verifyToken, isAdmin } = require('../middleware/authMiddleware');
+const { verifyFileLimit } = require('../middleware/rateLimit');
 
 // Public routes (No auth required)
 router.get('/verify/:verificationId', DocumentController.verify);
-router.post('/verify-file', upload.single('document'), checkFileSignature, DocumentController.verifyByFile);
+// Dibatasi sebelum unggah, jadi permintaan yang ditolak tidak sempat menulis berkas ke disk
+router.post('/verify-file', verifyFileLimit, upload.single('document'), checkFileSignature, DocumentController.verifyByFile);
 
 // Protected routes (Require Auth)
 router.use(verifyToken);

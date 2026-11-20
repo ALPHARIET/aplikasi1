@@ -7,6 +7,9 @@ const { TEST_DB_NAME, ADMIN, resetTestDb } = require('./testDb');
 // Harus diatur sebelum src/config/database.js dimuat: pool langsung dibuat saat require.
 // dotenv tidak menimpa variabel yang sudah ada, jadi nilai ini yang dipakai.
 process.env.DB_NAME = TEST_DB_NAME;
+// Test integrasi memanggil verify-file puluhan kali per menit dari IP yang sama. Batas aslinya
+// diuji tersendiri (test/unit/rateLimit.test.js dan audit keamanan), jadi di sini dilonggarkan.
+process.env.VERIFY_FILE_MAX_PER_MINUTE ??= '100000';
 
 const FIXTURE_DIR = path.join(__dirname, '../../database/seeds/demo-transcripts');
 const fixture = (kind, name) => path.join(FIXTURE_DIR, kind, name);
