@@ -130,7 +130,10 @@ export default function Verify() {
 
   const isFormValid = !!verificationId.trim() && !!file;
   const outcome = result ? classifyResult(result) : null;
-  const copy = outcome ? OUTCOME_COPY[outcome] : null;
+  // Berkas gambar (JPG/PNG) tidak bisa dibandingkan per bagian, jadi kalimat "ditandai di bawah" diganti
+  const copy = outcome === 'modified' && result.comparison?.supported === false
+    ? { ...OUTCOME_COPY.modified, body: 'Sidik jari berkas tidak cocok dengan yang tercatat saat transkrip diterbitkan. Bagian yang berubah hanya bisa ditandai untuk berkas PDF.' }
+    : outcome ? OUTCOME_COPY[outcome] : null;
   const info = result?.documentInfo;
 
   return (
@@ -168,7 +171,7 @@ export default function Verify() {
                   type="text"
                   value={verificationId}
                   onChange={(e) => setVerificationId(e.target.value)}
-                  placeholder="DOC-2026-G1A022001-OU6Q21"
+                  placeholder="DOC-2026-K7Q2M-9XAP4"
                   autoComplete="off"
                   spellCheck={false}
                   aria-describedby="verification-id-hint"

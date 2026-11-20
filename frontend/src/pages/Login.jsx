@@ -171,7 +171,7 @@ export default function Login() {
                   aria-controls="panel-masuk"
                   onClick={() => handleSwitchRole(value)}
                   className={`-mb-px border-b-[3px] px-1 pb-3 pt-1 text-[15px] font-semibold transition-colors first:mr-7 ${focusRing} ${
-                    role === value ? 'border-unib-navy text-unib-navy' : 'border-transparent text-[#7A7A7A] hover:text-unib-navy'
+                    role === value ? 'border-unib-navy text-unib-navy' : 'border-transparent text-[#666666] hover:text-unib-navy'
                   }`}
                 >
                   {r.tab}

@@ -1,10 +1,10 @@
-import { File, ScanLine, Upload, X } from 'lucide-react';
+import { File, Upload, X } from 'lucide-react';
 import Card, { CardHeader } from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import { formatFileSize } from './issueForm';
 
-// Kartu 2: pilih berkas dokumen dan pindai isinya secara otomatis
-export default function DocumentFileCard({ file, fileInputRef, onFileChange, onClear, scanning, onScan }) {
+// Kartu 2: pilih berkas dokumen yang akan diterbitkan
+export default function DocumentFileCard({ file, fileInputRef, onFileChange, onClear }) {
   return (
     <Card>
       <CardHeader
@@ -68,28 +68,12 @@ export default function DocumentFileCard({ file, fileInputRef, onFileChange, onC
               </button>
             </div>
           </div>
-
-          <div className="flex items-center justify-between gap-4 p-3.5 bg-canvas rounded-lg border border-border">
-            <div className="text-xs text-muted">
-              Pindai berkas secara otomatis untuk mengekstrak data nilai dan mata kuliah.
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              icon={ScanLine}
-              loading={scanning}
-              disabled={scanning}
-              onClick={onScan}
-            >
-              {scanning ? 'Memindai...' : 'Scan File'}
-            </Button>
-          </div>
         </div>
       )}
 
       <p className="text-xs text-muted mt-3">
-        File akan di-hash (SHA-256) dan hash dicatat secara permanen di blockchain.
+        Isi transkrip dibaca langsung dari berkas ini. Sidik jari berkas (hash SHA-256) dicatat
+        permanen di blockchain, jadi pastikan berkasnya sudah final.
       </p>
     </Card>
   );

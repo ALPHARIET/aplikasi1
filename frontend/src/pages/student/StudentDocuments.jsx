@@ -99,7 +99,7 @@ export default function StudentDocuments() {
               <TableHeaderCell>Tanggal Terbit</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
               <TableHeaderCell>Verification ID</TableHeaderCell>
-              <TableHeaderCell>TX Hash (Blockchain)</TableHeaderCell>
+              <TableHeaderCell>Hash Transaksi Blockchain</TableHeaderCell>
               <TableHeaderCell className="text-right w-44">Aksi</TableHeaderCell>
             </tr>
           </TableHead>

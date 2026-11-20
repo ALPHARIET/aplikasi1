@@ -17,7 +17,7 @@ import BrandLogo from '../BrandLogo';
 import api from '../../services/api';
 
 const ADMIN_NAVIGATION = [
-  { name: 'Dashboard', href: '/admin', icon: LayoutDashboard, exact: true },
+  { name: 'Dasbor', href: '/admin', icon: LayoutDashboard, exact: true },
   { name: 'Mahasiswa', href: '/admin/students', icon: Users },
   { name: 'Permintaan Transkrip', href: '/admin/transcript-requests', icon: ClipboardList, hasBadge: true },
   { name: 'Dokumen', href: '/admin/documents', icon: FileText },
@@ -25,7 +25,7 @@ const ADMIN_NAVIGATION = [
 ];
 
 const STUDENT_NAVIGATION = [
-  { name: 'Dashboard', href: '/student', icon: LayoutDashboard, exact: true },
+  { name: 'Dasbor', href: '/student', icon: LayoutDashboard, exact: true },
   { name: 'Permintaan Transkrip', href: '/student/requests', icon: ClipboardList },
   { name: 'Dokumen Saya', href: '/student/documents', icon: FileText },
   { name: 'Profil dan Keamanan', href: '/student/profile', icon: UserCheck },
@@ -39,7 +39,7 @@ export default function AppShell({ children, navigation }) {
 
   const isStudent = user?.role === 'student';
   const navItems = navigation || (isStudent ? STUDENT_NAVIGATION : ADMIN_NAVIGATION);
-  const portalTitle = isStudent ? 'Portal Mahasiswa' : 'Admin Portal';
+  const portalTitle = isStudent ? 'Portal Mahasiswa' : 'Portal Admin';
   const homeLink = isStudent ? '/student' : '/admin';
 
   // Ambil jumlah pending requests untuk admin

@@ -435,7 +435,7 @@ export default function DashboardHome() {
                 </div>
                 <div>
                   <p className="text-[11px] font-medium text-muted uppercase tracking-wider mb-1">
-                    TX Hash (Blockchain)
+                    Hash Transaksi Blockchain
                   </p>
                   <CopyText text={selectedDoc.tx_hash} showFull className="w-full" />
                 </div>

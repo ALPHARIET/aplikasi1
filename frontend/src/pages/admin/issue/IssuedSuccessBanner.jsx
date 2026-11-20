@@ -24,7 +24,7 @@ export default function IssuedSuccessBanner({ issued }) {
           <CopyText text={issued.verificationId} showFull />
         </div>
         <div className="p-3 bg-white rounded-lg border border-emerald-100">
-          <span className="text-[11px] text-muted block mb-1">TX Hash (Transaksi Blockchain)</span>
+          <span className="text-[11px] text-muted block mb-1">Hash Transaksi Blockchain</span>
           <CopyText text={issued.txHash} showFull />
         </div>
       </div>

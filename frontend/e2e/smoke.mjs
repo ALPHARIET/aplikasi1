@@ -162,10 +162,10 @@ try {
     await setFile('#file-upload-input', path.join(DEMO_DIR, 'asli/03-salsabila-nur-azizah.pdf'));
     await sleep(300);
   };
-  const issuedId = () => evaluate(`(document.body.innerText.match(/DOC-\\d{4}-${nim}-[A-Z0-9]+/) || [])[0] || null`);
+  const issuedId = () => evaluate(`(document.body.innerText.match(/DOC-\\d{4}-[A-Z0-9]{5}-[A-Z0-9]{5}/) || [])[0] || null`);
 
   await fillIssueForm();
-  const title = await evaluate(`[...document.querySelectorAll('input')].find((i) => i.placeholder === 'e.g. Transkrip Nilai Akademik').value`);
+  const title = await evaluate(`[...document.querySelectorAll('input')].find((i) => i.placeholder === 'Contoh: Transkrip Nilai Akademik').value`);
   check('Terbitkan: judul terisi otomatis setelah memilih berkas', title === 'Transkrip Nilai Akademik', title);
   check('Terbitkan: ringkasan menampilkan mahasiswa terpilih', await evaluate(bodyHas('Mahasiswa E2E')));
   await clickButton('Terbitkan Dokumen');

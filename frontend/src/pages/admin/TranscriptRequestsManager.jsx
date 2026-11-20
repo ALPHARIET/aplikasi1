@@ -135,7 +135,7 @@ export default function TranscriptRequestsManager() {
           >
             <option value="all">Semua Status</option>
             <option value="pending">Menunggu (Pending)</option>
-            <option value="issued">Selesai (Issued)</option>
+            <option value="issued">Selesai</option>
             <option value="rejected">Ditolak (Rejected)</option>
             <option value="cancelled">Dibatalkan</option>
           </Select>

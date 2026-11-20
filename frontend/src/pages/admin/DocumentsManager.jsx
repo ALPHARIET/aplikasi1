@@ -167,7 +167,7 @@ export default function DocumentsManager() {
             >
               <option value="all">Semua Status</option>
               <option value="issued">Valid</option>
-              <option value="revoked">Dicabut (Revoked)</option>
+              <option value="revoked">Dicabut</option>
               <option value="pending">Menunggu (Pending)</option>
             </Select>
           </div>
@@ -189,7 +189,7 @@ export default function DocumentsManager() {
             <TableHeaderCell>Mahasiswa</TableHeaderCell>
             <TableHeaderCell>Status</TableHeaderCell>
             <TableHeaderCell>Verification ID</TableHeaderCell>
-            <TableHeaderCell>TX Hash</TableHeaderCell>
+            <TableHeaderCell>Hash Transaksi</TableHeaderCell>
             <TableHeaderCell className="text-right w-24">Aksi</TableHeaderCell>
           </tr>
         </TableHead>
@@ -396,7 +396,7 @@ export default function DocumentsManager() {
 
               <div>
                 <p className="text-[11px] font-medium text-muted uppercase tracking-wider mb-1">
-                  TX Hash (Transaksi Blockchain)
+                  Hash Transaksi Blockchain
                 </p>
                 <div className="p-2.5 bg-canvas rounded-lg border border-border">
                   <CopyText text={selectedDoc.tx_hash} showFull className="w-full" />
@@ -437,7 +437,7 @@ export default function DocumentsManager() {
       >
         <div className="space-y-3 mt-4">
           <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 leading-relaxed">
-            Pencabutan dokumen dicatat secara permanen di blockchain dan tidak dapat dibatalkan. Status dokumen akan berubah menjadi <strong>Revoked</strong> dan akan terdeteksi tidak sah pada verifikasi publik.
+            Pencabutan dokumen dicatat secara permanen di blockchain dan tidak dapat dibatalkan. Status dokumen akan berubah menjadi <strong>Dicabut</strong> dan akan terdeteksi tidak sah pada verifikasi publik.
           </div>
 
           <div>
@@ -463,7 +463,7 @@ export default function DocumentsManager() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title="Hapus Dokumen"
-        description={`Apakah Anda yakin ingin menghapus arsip dokumen "${deleteTarget?.doc_title}"? Dokumen ini berstatus Revoked dan tindakan ini akan membersihkan berkas dan data dari database.`}
+        description={`Apakah Anda yakin ingin menghapus arsip dokumen "${deleteTarget?.doc_title}"? Dokumen ini berstatus Dicabut, dan tindakan ini akan membersihkan berkas dan data dari database.`}
         confirmText="Hapus Dokumen"
         cancelText="Batal"
         variant="danger"

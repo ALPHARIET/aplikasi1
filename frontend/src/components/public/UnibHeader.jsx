@@ -66,20 +66,20 @@ function DesktopMenuItem({ item, pathname }) {
     // Item halaman yang sedang dibuka bergaya navy tebal seperti "Beranda" di unib.ac.id
     const active = pathname === item.to;
     return (
-      <Link to={item.to} aria-current={active ? 'page' : undefined} className={`${base} ${active ? 'text-unib-navy' : 'text-[#7A7A7A] hover:text-unib-navy'}`}>
+      <Link to={item.to} aria-current={active ? 'page' : undefined} className={`${base} ${active ? 'text-unib-navy' : 'text-[#666666] hover:text-unib-navy'}`}>
         {item.label}
       </Link>
     );
   }
 
   if (!item.items) {
-    return <DummyItem className={`${base} text-[#7A7A7A] hover:text-unib-navy`}>{item.label}</DummyItem>;
+    return <DummyItem className={`${base} text-[#666666] hover:text-unib-navy`}>{item.label}</DummyItem>;
   }
 
   // Dropdown terbuka saat disorot atau difokus dengan keyboard
   return (
     <div className="group relative">
-      <button type="button" aria-haspopup="true" className={`${base} text-[#7A7A7A] hover:text-unib-navy group-hover:text-unib-navy group-focus-within:text-unib-navy`}>
+      <button type="button" aria-haspopup="true" className={`${base} text-[#666666] hover:text-unib-navy group-hover:text-unib-navy group-focus-within:text-unib-navy`}>
         {item.label}
         <ChevronDown strokeWidth={3.5} className="ml-[10px] -mr-[3px] w-3 h-3 transition-transform duration-150 group-hover:rotate-180 group-focus-within:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
       </button>
@@ -143,7 +143,7 @@ export default function UnibHeader() {
             {/* Nama layanan ini, di posisi logo mitra pada unib.ac.id */}
             <span className="ml-2 hidden border-l-2 border-[#DBDBDB] pl-3 leading-tight sm:block">
               <span className="block font-unib text-[14px] font-bold text-[#1565C0]">BlockCertify</span>
-              <span className="block font-unib text-[11px] text-[#7A7A7A]">Verifikasi Transkrip</span>
+              <span className="block font-unib text-[11px] text-[#666666]">Verifikasi Transkrip</span>
             </span>
           </Link>
 

@@ -3,7 +3,7 @@ import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 
 // Kolom kanan: ringkasan isian dan tombol terbitkan
-export default function IssueSummaryCard({ student, docTitle, file, transcriptData, isFormValid, loading }) {
+export default function IssueSummaryCard({ student, docTitle, file, isFormValid, loading }) {
   return (
     <Card>
       <h3 className="text-base font-semibold text-brand-900 border-b border-border pb-3 mb-4">
@@ -59,27 +59,6 @@ export default function IssueSummaryCard({ student, docTitle, file, transcriptDa
           ) : (
             <span className="text-muted italic">Belum dipilih</span>
           )}
-        </div>
-
-        <div className="pt-2 border-t border-border grid grid-cols-2 gap-2 text-[11px]">
-          <div>
-            <span className="text-muted block">Total SKS:</span>
-            <span className="font-semibold text-ink">
-              {transcriptData.totalSks || '-'}
-            </span>
-          </div>
-          <div>
-            <span className="text-muted block">IPK:</span>
-            <span className="font-semibold text-ink">
-              {transcriptData.ipk || '-'}
-            </span>
-          </div>
-          <div className="col-span-2">
-            <span className="text-muted block">Jumlah Mata Kuliah:</span>
-            <span className="font-semibold text-ink">
-              {transcriptData.courses.length} MK
-            </span>
-          </div>
         </div>
       </div>
 

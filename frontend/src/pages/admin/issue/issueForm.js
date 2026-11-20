@@ -2,26 +2,14 @@
 
 export const DOCUMENT_TYPE = 'transkrip';
 
-export const GRADE_OPTIONS = ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'D', 'E'];
-
-// Selalu buat objek baru: nilai ini dipakai sebagai state React
-export const emptyCourse = () => ({ kodeMk: '', namaMk: '', sks: '', nilai: '', semester: '' });
-
-export const emptyTranscript = () => ({
-  totalSks: '',
-  ipk: '',
-  tahunMasuk: '',
-  courses: [emptyCourse()],
-});
-
-// Isi multipart untuk POST /documents/issue
-export function buildIssueFormData({ formData, file, transcriptData, requestId }) {
+// Isi multipart untuk POST /documents/issue. Isi transkrip (nilai, IPK, mata kuliah) tidak dikirim
+// terpisah: berkas PDF itulah transkripnya, dan berkas itu yang di-hash serta dibandingkan saat verifikasi.
+export function buildIssueFormData({ formData, file, requestId }) {
   const data = new FormData();
   data.append('studentId', formData.studentId);
   data.append('docType', DOCUMENT_TYPE);
   data.append('docTitle', formData.docTitle);
   data.append('document', file);
-  data.append('transcriptData', JSON.stringify(transcriptData));
   if (requestId) data.append('requestId', requestId);
   return data;
 }

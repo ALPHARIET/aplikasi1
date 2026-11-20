@@ -29,7 +29,7 @@ export default {
         pub: {
           ink: '#0A0B0D',
           body: '#5B616E',
-          muted: '#7C828A',
+          muted: '#5F6670',
           line: '#DEE1E6',
           soft: '#F7F7F7',
           strong: '#EEF0F3',
