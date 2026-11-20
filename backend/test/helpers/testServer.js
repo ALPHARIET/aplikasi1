@@ -69,7 +69,10 @@ async function startTestServer() {
         auth: token ? `${token.slice(0, 12)}…` : null,
         body: describeBody(body),
         status: res.status,
-        response: typeof data === 'string' ? `[${res.headers.get('content-type')}, ${text.length} byte]` : JSON.stringify(data).slice(0, 400)
+        // Token JWT di response disensor agar bukti aman dibagikan
+        response: typeof data === 'string'
+          ? `[${res.headers.get('content-type')}, ${text.length} byte]`
+          : JSON.stringify(data).replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, (jwt) => `${jwt.slice(0, 12)}…(disensor)`).slice(0, 400)
       });
     }
     return { status: res.status, data, headers: res.headers };
