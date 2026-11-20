@@ -8,7 +8,10 @@
     "dev": "nodemon server.js",
     "seed:demo": "node database/seeds/seed_demo_transcripts.js",
     "clean:docs": "node scripts/clean_documents.js",
-    "db:reset": "node scripts/reset_database.js"
+    "db:reset": "node scripts/reset_database.js",
+    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\"",
+    "test:unit": "node --test \"test/unit/*.test.js\"",
+    "test:update-snapshots": "node --test --test-update-snapshots \"test/unit/*.test.js\""
   },
   "keywords": [],
   "author": "",
