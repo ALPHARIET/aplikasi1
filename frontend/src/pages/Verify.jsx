@@ -1,15 +1,96 @@
 import { useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ShieldCheck, ShieldAlert, Upload, Search, FileText, Loader2, X } from 'lucide-react';
+import {
+  ShieldCheck,
+  ShieldX,
+  ArrowLeftRight,
+  Ban,
+  FileQuestion,
+  FileText,
+  Loader2,
+  X,
+  AlertCircle,
+  ChevronRight,
+} from 'lucide-react';
 import api from '../services/api';
 import DocumentDiffViewer from '../components/DocumentDiffViewer';
-import BrandLogo from '../components/BrandLogo';
-import Button from '../components/ui/Button';
+import PublicLayout from '../components/public/PublicLayout';
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // sama dengan batas unggah di backend
+const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
+
+const focusRing = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-unib-blue focus-visible:ring-offset-2';
+
+// Backend mengirim pesan berbahasa Inggris; halaman ini menentukan jenis hasil dari isi respons
+// lalu menampilkan teks Indonesia sendiri.
+function classifyResult(result) {
+  if (result.isValid) return 'valid';
+  if (result.matchedDocument) return 'swapped';
+  if (result.revocationReason || /revoked/i.test(result.message || '')) return 'revoked';
+  if (/not registered/i.test(result.message || '')) return 'unregistered';
+  return 'modified';
+}
+
+const OUTCOME_COPY = {
+  valid: {
+    icon: ShieldCheck,
+    status: 'Valid',
+    tone: 'text-pub-up',
+    title: 'Transkrip asli',
+    body: 'Sidik jari berkas cocok dengan catatan di blockchain, dan transkrip ini masih berlaku.',
+  },
+  modified: {
+    icon: ShieldX,
+    status: 'Tidak valid',
+    tone: 'text-pub-down',
+    title: 'Berkas sudah diubah',
+    body: 'Sidik jari berkas tidak cocok dengan yang tercatat saat transkrip diterbitkan. Bagian yang berbeda ditandai di bawah.',
+  },
+  swapped: {
+    icon: ArrowLeftRight,
+    status: 'Perlu dicek',
+    tone: 'text-[#B45309]',
+    title: 'Terdaftar dengan Verification ID lain',
+    body: 'Berkas ini asli, tetapi tidak tercatat dengan Verification ID yang Anda masukkan.',
+  },
+  revoked: {
+    icon: Ban,
+    status: 'Tidak valid',
+    tone: 'text-pub-down',
+    title: 'Transkrip sudah dicabut',
+    body: 'Transkrip ini pernah diterbitkan, lalu dicabut oleh bagian akademik Universitas Bengkulu.',
+  },
+  unregistered: {
+    icon: FileQuestion,
+    status: 'Tidak ditemukan',
+    tone: 'text-pub-muted',
+    title: 'Verification ID tidak terdaftar',
+    body: 'Tidak ada catatan untuk Verification ID ini di blockchain. Periksa lagi penulisannya, atau minta ID yang benar kepada pemilik transkrip.',
+  },
+};
+
+const DOC_TYPE_LABEL = { transkrip: 'Transkrip nilai', ijazah: 'Ijazah' };
+
+const formatSize = (bytes) => (bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
+
+const formatDate = (value) =>
+  value ? new Date(value).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }) : '-';
+
+function DetailRow({ label, children, mono = false, wide = false }) {
+  return (
+    <div className={`border-b border-pub-line py-4 ${wide ? 'sm:col-span-2' : ''}`}>
+      <dt className="text-sm text-pub-muted">{label}</dt>
+      <dd className={`mt-1 text-base font-semibold text-pub-ink ${mono ? 'break-all font-mono text-[13px] font-medium' : ''}`}>{children}</dd>
+    </div>
+  );
+}
 
 export default function Verify() {
   const { verificationId: paramId } = useParams();
   const [verificationId, setVerificationId] = useState(paramId || '');
   const [file, setFile] = useState(null);
+  const [fileError, setFileError] = useState('');
+  const [dragging, setDragging] = useState(false);
   const [verifiedFile, setVerifiedFile] = useState(null);
   const fileInputRef = useRef(null);
 
@@ -17,7 +98,7 @@ export default function Verify() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
 
-  // Verification ID + file wajib: cocokkan hash ke blockchain + bandingkan isi dokumen
+  // Verification ID + berkas wajib: cocokkan hash ke blockchain + bandingkan isi dokumen
   const handleVerify = async (e, idOverride) => {
     e?.preventDefault();
     const id = (idOverride || verificationId).trim();
@@ -37,255 +118,238 @@ export default function Verify() {
       setVerifiedFile(file);
       setResult(response.data);
     } catch (err) {
-      setError(err.response?.data?.error || 'Verification failed. Document not found.');
+      setError(
+        err.response
+          ? 'Pemeriksaan gagal diproses. Pastikan berkasnya PDF, JPG, atau PNG berukuran maksimal 5 MB, lalu coba lagi.'
+          : 'Server pemeriksaan tidak bisa dihubungi. Periksa koneksi internet Anda, lalu coba lagi.'
+      );
     } finally {
       setLoading(false);
     }
   };
 
+  const pickFile = (picked) => {
+    if (!picked) return;
+    if (!ACCEPTED_TYPES.includes(picked.type)) {
+      setFileError('Format berkas tidak didukung. Gunakan PDF, JPG, atau PNG.');
+      return;
+    }
+    if (picked.size > MAX_FILE_SIZE) {
+      setFileError(`Berkas ${formatSize(picked.size)}, melebihi batas 5 MB. Gunakan berkas PDF asli dari pemilik transkrip.`);
+      return;
+    }
+    setFileError('');
+    setFile(picked);
+  };
+
   const clearFile = () => {
     setFile(null);
+    setFileError('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const isFormValid = !!verificationId.trim() && !!file;
+  const outcome = result ? classifyResult(result) : null;
+  const copy = outcome ? OUTCOME_COPY[outcome] : null;
+  const info = result?.documentInfo;
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header Bersih Sebelum Revisi */}
-        <div className="text-center mb-12">
-          <div className="flex justify-center mb-4">
-            <BrandLogo className="h-24 w-auto object-contain" />
-          </div>
-          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">
-            Document Verification
-          </h1>
-          <p className="mt-4 text-lg text-slate-600">
-            Verify the authenticity of academic documents using our Blockchain Registry.
+    <PublicLayout>
+      {/* Kepala halaman: navy UNIB dengan tepi miring */}
+      <section className="relative overflow-hidden bg-unib-deep text-white">
+        <div className="relative mx-auto max-w-[1200px] px-4 pb-40 pt-12 sm:px-6 lg:pt-16">
+          <nav aria-label="Jejak navigasi" className="flex items-center gap-1.5 text-sm text-[#A8B3DA]">
+            <Link to="/" className={`rounded hover:text-white ${focusRing}`}>Beranda</Link>
+            <ChevronRight className="w-4 h-4" aria-hidden="true" />
+            <span aria-current="page" className="text-white">Periksa dokumen</span>
+          </nav>
+          <h1 className="mt-6 text-[2.5rem] font-normal leading-none tracking-[-0.025em] sm:text-[3.25rem]">Periksa dokumen</h1>
+          <p className="mt-5 max-w-2xl text-lg leading-normal text-[#C9D2F2]">
+            Cocokkan berkas transkrip dengan catatan yang diterbitkan Universitas Bengkulu di blockchain. Tidak perlu akun.
           </p>
         </div>
+        <svg aria-hidden="true" className="absolute bottom-0 left-0 h-[48px] w-full sm:h-[72px]" viewBox="0 0 1440 72" preserveAspectRatio="none">
+          <polygon points="0,6 1440,62 1440,72 0,16" fill="#FBEB00" />
+          <polygon points="0,16 1440,72 0,72" fill="#F7F7F7" />
+        </svg>
+      </section>
 
-        {/* Kartu Form Verifikasi */}
-        <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-          <div className="p-8">
-            <form onSubmit={handleVerify} className="space-y-5">
-              <div className="grid md:grid-cols-2 gap-5">
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1.5">
-                    <Search className="w-4 h-4 text-[#151B54]" />
-                    Verification ID
-                  </label>
-                  <input
-                    type="text"
-                    value={verificationId}
-                    onChange={(e) => setVerificationId(e.target.value)}
-                    placeholder="e.g. DOC-2026-123-ABC"
-                    className="block w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2B3FA8] focus:border-transparent text-sm font-mono"
-                  />
-                </div>
+      <section className="bg-pub-soft pb-24">
+        <div className="relative z-10 mx-auto -mt-28 max-w-4xl px-4 sm:px-6">
+          {/* Formulir pemeriksaan */}
+          <form onSubmit={handleVerify} className="rounded-3xl border border-pub-line bg-white p-6 shadow-soft sm:p-10">
+            <div className="grid gap-6 md:grid-cols-2">
+              <div>
+                <label htmlFor="verification-id" className="block text-sm font-semibold text-pub-ink">
+                  Verification ID
+                </label>
+                <input
+                  id="verification-id"
+                  type="text"
+                  value={verificationId}
+                  onChange={(e) => setVerificationId(e.target.value)}
+                  placeholder="DOC-2026-G1A022001-OU6Q21"
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-describedby="verification-id-hint"
+                  className="mt-2 h-12 w-full rounded-xl border border-pub-line bg-white px-4 font-mono text-[15px] text-pub-ink placeholder:text-[#A8ACB3] focus:border-2 focus:border-unib-blue focus:px-[15px] focus:outline-none"
+                />
+                <p id="verification-id-hint" className="mt-2 text-sm text-pub-muted">
+                  Minta kepada pemilik transkrip. Mahasiswa bisa menyalinnya di Portal Mahasiswa.
+                </p>
+              </div>
 
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1.5">
-                    <Upload className="w-4 h-4 text-[#151B54]" />
-                    Document File <span className="font-normal text-slate-400">(PDF)</span>
-                  </label>
-                  <div className="flex items-center gap-2 px-2 py-1.5 border border-slate-300 rounded-lg bg-white">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".pdf,image/*"
-                      onChange={(e) => setFile(e.target.files[0] || null)}
-                      className="block w-full min-w-0 text-sm text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#E6EAFB] file:text-[#151B54] hover:file:bg-[#DDE1EE] cursor-pointer"
-                    />
-                    {file && (
-                      <button
-                        type="button"
-                        onClick={clearFile}
-                        title="Remove file"
-                        className="p-1.5 rounded-lg bg-white border border-[#CBD5E1] text-[#334155] hover:bg-[#FEF2F2] hover:text-[#B91C1C] flex-shrink-0 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
+              <div>
+                <span id="file-label" className="block text-sm font-semibold text-pub-ink">
+                  Berkas transkrip
+                </span>
+                <input
+                  ref={fileInputRef}
+                  id="document-file"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => pickFile(e.target.files[0])}
+                  className="sr-only"
+                  aria-labelledby="file-label"
+                  aria-describedby="file-hint"
+                />
+                {file ? (
+                  <div className="mt-2 flex h-12 items-center gap-3 rounded-xl border border-pub-line bg-pub-soft px-3">
+                    <FileText className="w-5 h-5 shrink-0 text-unib-navy" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-pub-ink" title={file.name}>{file.name}</span>
+                    <span className="shrink-0 text-sm text-pub-muted">{formatSize(file.size)}</span>
+                    <button
+                      type="button"
+                      onClick={clearFile}
+                      aria-label={`Hapus berkas ${file.name}`}
+                      className={`shrink-0 rounded-full p-1.5 text-pub-body hover:bg-pub-strong hover:text-pub-down ${focusRing}`}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
-                </div>
+                ) : (
+                  <label
+                    htmlFor="document-file"
+                    onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                    onDragLeave={() => setDragging(false)}
+                    onDrop={(e) => { e.preventDefault(); setDragging(false); pickFile(e.dataTransfer.files[0]); }}
+                    className={`mt-2 flex h-12 cursor-pointer items-center justify-between gap-3 rounded-xl border border-dashed px-3 transition-colors ${
+                      dragging ? 'border-unib-blue bg-[#EEF3FF]' : 'border-[#C5CAD3] hover:border-unib-navy'
+                    }`}
+                  >
+                    <span className="truncate text-[15px] text-pub-muted">Seret berkas ke sini</span>
+                    <span className="shrink-0 rounded-full bg-pub-strong px-4 py-1.5 text-sm font-semibold text-pub-ink">Pilih berkas</span>
+                  </label>
+                )}
+                <p id="file-hint" className={`mt-2 text-sm ${fileError ? 'text-pub-down' : 'text-pub-muted'}`}>
+                  {fileError || 'PDF, JPG, atau PNG, maksimal 5 MB. Gunakan berkas asli, bukan hasil scan.'}
+                </p>
               </div>
+            </div>
 
-              {/* Tombol Verifikasi Dokumen Kontras Tinggi */}
-              <Button
+            <div className="mt-8 flex flex-col gap-4 border-t border-pub-line pt-8 sm:flex-row sm:items-center">
+              <button
                 type="submit"
-                variant="primary"
-                size="lg"
-                className="w-full text-base font-semibold py-3.5"
                 disabled={loading || !isFormValid}
-                loading={loading}
-                icon={ShieldCheck}
-              >
-                {loading ? 'Querying Blockchain...' : 'Verify Document'}
-              </Button>
-
-              <p className="text-xs text-slate-500 text-center">
-                {isFormValid
-                  ? 'File will be matched against the blockchain record. Any modified fields will be highlighted.'
-                  : 'Fill in the Verification ID and upload the document file to verify.'}
-              </p>
-            </form>
-
-            {/* State Loading */}
-            {loading && (
-              <div className="mt-12 flex flex-col items-center justify-center py-8">
-                <Loader2 className="w-10 h-10 text-[#151B54] animate-spin mb-4" />
-                <p className="text-slate-600 font-medium">Querying Blockchain...</p>
-              </div>
-            )}
-
-            {/* State Error */}
-            {error && !loading && (
-              <div className="mt-8 bg-red-50 border border-red-200 rounded-xl p-6 flex flex-col items-center text-center">
-                <ShieldAlert className="w-12 h-12 text-red-500 mb-3" />
-                <h3 className="text-lg font-bold text-red-900">Verification Failed</h3>
-                <p className="text-red-700 mt-1">{error}</p>
-              </div>
-            )}
-
-            {/* Bagian Hasil Verifikasi */}
-            {result && !loading && !error && (
-              <div
-                className={`mt-8 border rounded-2xl p-8 ${
-                  result.isValid
-                    ? 'bg-emerald-50/70 border-emerald-200'
-                    : 'bg-red-50/70 border-red-200'
+                className={`inline-flex h-14 items-center justify-center gap-2 rounded-full px-8 text-base font-semibold text-white transition-colors ${focusRing} ${
+                  loading || !isFormValid ? 'cursor-not-allowed bg-[#A8B3CC]' : 'bg-unib-navy hover:bg-[#1D2F86] active:bg-unib-night'
                 }`}
               >
-                {/* Header Hasil */}
-                <div className="flex flex-col items-center text-center mb-8">
-                  {result.isValid ? (
-                    <>
-                      <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4 shadow-sm">
-                        <ShieldCheck className="w-10 h-10 text-emerald-600" />
-                      </div>
-                      <h3 className="text-2xl font-bold text-emerald-900">
-                        Document is authentic and unmodified
-                      </h3>
-                      <p className="text-emerald-700 mt-2">
-                        {result.message || 'This document has been successfully verified on the blockchain.'}
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4 shadow-sm">
-                        <ShieldAlert className="w-10 h-10 text-red-600" />
-                      </div>
-                      <h3 className="text-2xl font-bold text-red-900">Verification Failed</h3>
-                      <p className="text-red-700 mt-2">
-                        {result.message || 'Document has been modified or is fake. Hash does not match.'}
-                      </p>
+                {loading && <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />}
+                {loading ? 'Memeriksa…' : 'Periksa dokumen'}
+              </button>
+              <p className="text-sm text-pub-muted" aria-live="polite">
+                {loading
+                  ? 'Menghitung sidik jari berkas dan mencocokkannya dengan catatan di blockchain.'
+                  : isFormValid
+                    ? 'Kolom yang berbeda dari aslinya akan ditandai.'
+                    : 'Isi Verification ID dan pilih berkasnya untuk mulai memeriksa.'}
+              </p>
+            </div>
+          </form>
 
-                      {result.revocationReason && (
-                        <div className="mt-4 p-4 bg-white/80 rounded-xl border border-red-200 text-sm text-red-800 text-left w-full max-w-md shadow-sm">
-                          <strong>Reason for Revocation:</strong> {result.revocationReason}
-                        </div>
-                      )}
-
-                      {result.matchedDocument && (
-                        <div className="mt-5 p-5 bg-amber-50 border border-amber-300 rounded-xl text-sm text-amber-900 text-left w-full max-w-lg shadow-sm">
-                          <p className="font-bold">Verification ID tidak sesuai dengan file</p>
-                          <p className="mt-1">
-                            File yang Anda upload adalah dokumen asli, tetapi terdaftar sebagai{' '}
-                            <strong>{result.matchedDocument.docTitle}</strong> dengan Verification ID{' '}
-                            <span className="font-mono break-all font-bold">
-                              {result.matchedDocument.verificationId}
-                            </span>.
-                          </p>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => {
-                              setVerificationId(result.matchedDocument.verificationId);
-                              handleVerify(null, result.matchedDocument.verificationId);
-                            }}
-                            className="mt-3"
-                          >
-                            Verifikasi dengan ID ini
-                          </Button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {/* Document Details Card */}
-                {result.documentInfo && (
-                  <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-                    <h4 className="font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4 flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-[#151B54]" />
-                      Document Details
-                    </h4>
-                    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
-                      <div>
-                        <dt className="text-slate-500 font-medium">Student Name</dt>
-                        <dd className="mt-1 text-slate-900 font-semibold text-base">
-                          {result.documentInfo.studentName || result.documentInfo.full_name}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-slate-500 font-medium">Student ID (NIM)</dt>
-                        <dd className="mt-1 text-slate-900 font-semibold text-base font-mono">
-                          {result.documentInfo.studentId || result.documentInfo.student_id_number}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-slate-500 font-medium">Document Type</dt>
-                        <dd className="mt-1 text-slate-900 font-semibold uppercase">
-                          {result.documentInfo.docType || result.documentInfo.doc_type}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-slate-500 font-medium">Issued Date</dt>
-                        <dd className="mt-1 text-slate-900 font-semibold">
-                          {result.documentInfo.issuedAt || result.documentInfo.issued_at
-                            ? new Date(
-                                result.documentInfo.issuedAt || result.documentInfo.issued_at
-                              ).toLocaleDateString('id-ID', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric',
-                              })
-                            : '-'}
-                        </dd>
-                      </div>
-                      {(result.documentInfo.txHash || result.documentInfo.tx_hash) && (
-                        <div className="sm:col-span-2 pt-4 border-t border-slate-100">
-                          <dt className="text-slate-500 font-medium">Blockchain Transaction Hash</dt>
-                          <dd className="mt-1 text-xs font-mono text-slate-700 break-all bg-slate-50 p-2.5 rounded-lg border border-slate-200 select-all">
-                            {result.documentInfo.txHash || result.documentInfo.tx_hash}
-                          </dd>
-                        </div>
-                      )}
-                    </dl>
-                  </div>
-                )}
-
-                {/* Dokumen dimodifikasi -> Dokumen Diff Viewer selebar penuh */}
-                {!result.isValid && result.comparison && (
-                  <DocumentDiffViewer file={verifiedFile} comparison={result.comparison} />
-                )}
+          {/* Galat permintaan */}
+          {error && !loading && (
+            <div role="alert" className="mt-6 flex items-start gap-3 rounded-3xl border border-pub-line bg-white p-6 sm:p-8">
+              <AlertCircle className="mt-0.5 w-5 h-5 shrink-0 text-pub-down" aria-hidden="true" />
+              <div>
+                <h2 className="text-lg font-semibold text-pub-ink">Pemeriksaan belum bisa dilakukan</h2>
+                <p className="mt-1 text-base text-pub-body">{error}</p>
               </div>
-            )}
-          </div>
-        </div>
+            </div>
+          )}
 
-        {/* Tautan ke Admin Portal */}
-        <div className="text-center text-xs text-slate-500 pt-6">
-          <Link
-            to="/login"
-            className="text-[#151B54] hover:text-[#1E2A78] font-semibold transition-colors"
-          >
-            Portal Admin BlockCertify &rarr;
-          </Link>
+          {/* Hasil pemeriksaan */}
+          {result && copy && !loading && !error && (
+            <section aria-labelledby="hasil-judul" className="mt-6 rounded-3xl border border-pub-line bg-white p-6 sm:p-10">
+              <div className="flex items-start gap-5">
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-pub-strong">
+                  <copy.icon className={`w-6 h-6 ${copy.tone}`} aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <p className={`inline-flex items-center gap-1.5 text-sm font-semibold ${copy.tone}`}>
+                    <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />
+                    {copy.status}
+                  </p>
+                  <h2 id="hasil-judul" className="mt-1 text-[1.75rem] font-normal leading-tight tracking-[-0.015em] text-pub-ink sm:text-[2rem]">
+                    {copy.title}
+                  </h2>
+                  <p className="mt-2 text-base leading-normal text-pub-body">{copy.body}</p>
+                </div>
+              </div>
+
+              {outcome === 'revoked' && result.revocationReason && (
+                <div className="mt-6 rounded-2xl bg-pub-soft p-5">
+                  <p className="text-sm text-pub-muted">Alasan pencabutan</p>
+                  <p className="mt-1 text-base font-semibold text-pub-ink">{result.revocationReason}</p>
+                </div>
+              )}
+
+              {outcome === 'swapped' && (
+                <div className="mt-6 rounded-2xl bg-pub-soft p-5">
+                  <p className="text-base text-pub-body">
+                    Berkas ini tercatat sebagai <strong className="font-semibold text-pub-ink">{result.matchedDocument.docTitle}</strong> dengan
+                    Verification ID <span className="break-all font-mono text-[14px] font-medium text-pub-ink">{result.matchedDocument.verificationId}</span>.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVerificationId(result.matchedDocument.verificationId);
+                      handleVerify(null, result.matchedDocument.verificationId);
+                    }}
+                    className={`mt-4 inline-flex h-11 items-center rounded-full bg-unib-navy px-5 text-base font-semibold text-white hover:bg-[#1D2F86] ${focusRing}`}
+                  >
+                    Periksa dengan ID ini
+                  </button>
+                </div>
+              )}
+
+              {info && (
+                <div className="mt-8">
+                  <h3 className="text-lg font-semibold text-pub-ink">Data transkrip terdaftar</h3>
+                  <dl className="mt-2 grid gap-x-8 border-t border-pub-line sm:grid-cols-2">
+                    <DetailRow label="Nama mahasiswa">{info.studentName || '-'}</DetailRow>
+                    <DetailRow label="NIM" mono>{info.studentId || '-'}</DetailRow>
+                    <DetailRow label="Dokumen">{info.docTitle || DOC_TYPE_LABEL[info.docType] || '-'}</DetailRow>
+                    <DetailRow label="Tanggal terbit">{formatDate(info.issuedAt)}</DetailRow>
+                    {info.program && <DetailRow label="Program studi">{info.program}</DetailRow>}
+                    {info.faculty && <DetailRow label="Fakultas">{info.faculty}</DetailRow>}
+                    {info.txHash && (
+                      <DetailRow label="Hash transaksi blockchain" mono wide>
+                        <span className="select-all">{info.txHash}</span>
+                      </DetailRow>
+                    )}
+                  </dl>
+                </div>
+              )}
+
+              {outcome === 'modified' && result.comparison && (
+                <DocumentDiffViewer file={verifiedFile} comparison={result.comparison} />
+              )}
+            </section>
+          )}
         </div>
-      </div>
-    </div>
+      </section>
+    </PublicLayout>
   );
 }

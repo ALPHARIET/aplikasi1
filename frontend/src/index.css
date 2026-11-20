@@ -20,6 +20,27 @@
   }
 }
 
+/* Landing page: pola halus seperti kertas pengaman ijazah pada transkrip contoh */
+.transcript-paper {
+  background-color: #ffffff;
+  background-image:
+    repeating-radial-gradient(circle at 18% 120%, rgba(59, 91, 219, 0.045) 0 1px, transparent 1px 9px),
+    repeating-radial-gradient(circle at 82% -20%, rgba(59, 91, 219, 0.035) 0 1px, transparent 1px 11px);
+}
+
+/* Landing page: karakter hash yang berubah berkedip sekali saat transkrip diubah */
+@keyframes hash-char-flash {
+  from { background-color: rgba(248, 113, 113, 0.55); }
+  to { background-color: transparent; }
+}
+.hash-char-changed {
+  animation: hash-char-flash 700ms ease-out;
+  border-radius: 1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hash-char-changed { animation: none; }
+}
+
 /* Custom scrollbars for clean internal table and drawer scrolling */
 ::-webkit-scrollbar {
   width: 6px;

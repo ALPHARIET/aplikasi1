@@ -18,6 +18,7 @@ const path = require('path');
 const zlib = require('zlib');
 const PDFDocument = require('pdfkit');
 const mysql = require('mysql2/promise');
+const { resolveStoredPath } = require('../../src/utils/uploadPath');
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 const API_URL = process.env.SEED_API_URL || `http://localhost:${process.env.PORT || 5000}/api/v1`;
@@ -427,7 +428,7 @@ const dbConnect = () => mysql.createConnection({
 
 const unlinkFiles = (docs) => {
   for (const d of docs) {
-    for (const file of [d.file_path, d.qr_code_path]) {
+    for (const file of [d.file_path, d.qr_code_path].map(resolveStoredPath)) {
       if (file && fs.existsSync(file)) fs.unlinkSync(file);
     }
   }

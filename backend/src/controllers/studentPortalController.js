@@ -5,6 +5,7 @@ const StudentModel = require('../models/studentModel');
 const UserModel = require('../models/userModel');
 const DocumentModel = require('../models/documentModel');
 const TranscriptRequestModel = require('../models/transcriptRequestModel');
+const { resolveStoredPath } = require('../utils/uploadPath');
 
 const StudentPortalController = {
   // 1. Profil Mahasiswa (Hanya data diri sendiri dari token)
@@ -206,13 +207,14 @@ const StudentPortalController = {
         return res.status(403).json({ error: 'Akses ditolak. Anda tidak berhak mengunduh dokumen ini.' });
       }
 
-      if (!doc.file_path || !fs.existsSync(doc.file_path)) {
+      const fileOnDisk = resolveStoredPath(doc.file_path);
+      if (!fileOnDisk || !fs.existsSync(fileOnDisk)) {
         return res.status(404).json({ error: 'Berkas dokumen fisik tidak ditemukan di server.' });
       }
 
       // Dokumen berstatus revoked tetap diizinkan diunduh (arsip mahasiswa)
-      const filename = `${doc.verification_id || 'transkrip'}${path.extname(doc.file_path) || '.pdf'}`;
-      res.download(doc.file_path, filename);
+      const filename = `${doc.verification_id || 'transkrip'}${path.extname(fileOnDisk) || '.pdf'}`;
+      res.download(fileOnDisk, filename);
     } catch (error) {
       console.error('Download Document Error:', error);
       res.status(500).json({ error: 'Gagal mengunduh dokumen transkrip nilai' });

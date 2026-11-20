@@ -1,16 +1,21 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET, JWT_EXPIRES_IN } = require('../config/jwt');
 const UserModel = require('../models/userModel');
 const StudentModel = require('../models/studentModel');
 
 const AuthController = {
-  // Register a new user (internal/admin)
+  // Register a new user (khusus Admin, lihat authRoutes)
   register: async (req, res) => {
     try {
-      const { name, email, password, role } = req.body;
+      const { name, email, password, role = 'student' } = req.body;
 
       if (!name || !email || !password) {
         return res.status(400).json({ error: 'Nama, email, dan kata sandi wajib diisi' });
+      }
+
+      if (!['admin', 'student'].includes(role)) {
+        return res.status(400).json({ error: "Role harus 'admin' atau 'student'" });
       }
 
       const existingUser = await UserModel.findByEmail(email);
@@ -25,7 +30,7 @@ const AuthController = {
         name,
         email,
         passwordHash,
-        role: role || 'student'
+        role
       });
 
       res.status(201).json({
@@ -41,7 +46,8 @@ const AuthController = {
   // Login (Mendukung Email untuk Admin & Mahasiswa, serta NIM untuk Mahasiswa)
   login: async (req, res) => {
     try {
-      const { email, studentIdNumber, identifier, password } = req.body;
+      // role (opsional): peran yang dipilih di halaman login; kalau dikirim, harus sama dengan peran akun
+      const { email, studentIdNumber, identifier, password, role: expectedRole } = req.body;
       const loginId = (identifier || studentIdNumber || email || '').trim();
 
       if (!loginId || !password) {
@@ -81,6 +87,20 @@ const AuthController = {
         return res.status(401).json({ error: 'NIM/email atau kata sandi salah' });
       }
 
+      // Dicek setelah kata sandi benar, jadi peran akun tidak bocor ke orang yang tidak tahu sandinya
+      if (expectedRole !== undefined && !['admin', 'student'].includes(expectedRole)) {
+        return res.status(400).json({ error: 'Peran tidak valid' });
+      }
+      if (expectedRole && expectedRole !== user.role) {
+        return res.status(403).json({
+          error: user.role === 'admin'
+            ? 'Ini akun administrator, bukan akun mahasiswa.'
+            : 'Ini akun mahasiswa, bukan akun administrator.',
+          code: 'ROLE_MISMATCH',
+          actualRole: user.role
+        });
+      }
+
       // Generate JWT Token
       const payload = {
         id: user.id,
@@ -92,8 +112,8 @@ const AuthController = {
 
       const token = jwt.sign(
         payload,
-        process.env.JWT_SECRET || 'fallback_secret',
-        { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN }
       );
 
       res.status(200).json({
@@ -152,8 +172,8 @@ const AuthController = {
 
       const token = jwt.sign(
         payload,
-        process.env.JWT_SECRET || 'fallback_secret',
-        { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN }
       );
 
       res.status(200).json({

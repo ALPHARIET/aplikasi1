@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 import Login from './pages/Login';
+import Landing from './pages/Landing';
 
 import AdminDashboard from './pages/AdminDashboard';
 import StudentDashboard from './pages/StudentDashboard';
@@ -22,10 +23,10 @@ const ProtectedRoute = ({ children, allowedRole }) => {
   return children;
 };
 
-// Pengarah cerdas saat mengakses '/'
+// '/' : pengunjung melihat landing page, pengguna yang sudah masuk diarahkan ke dasbornya
 const RootRedirect = () => {
   const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Landing />;
   if (user.role === 'admin') return <Navigate to="/admin" replace />;
   if (user.role === 'student') return <Navigate to="/student" replace />;
   return <Navigate to="/login" replace />;

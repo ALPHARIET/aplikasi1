@@ -4,8 +4,24 @@ const TranscriptRequestModel = require('../models/transcriptRequestModel');
 const HashService = require('../utils/hashService');
 const BlockchainService = require('../services/blockchainService');
 const DocumentComparator = require('../services/documentComparator');
+const { toStoredPath, resolveStoredPath } = require('../utils/uploadPath');
 const path = require('path');
 const fs = require('fs');
+
+// Data dokumen yang aman ditampilkan di endpoint verifikasi publik.
+// Jangan kirim baris database mentah: ada file_path, file_hash, id internal, dll.
+const toPublicDocumentInfo = (doc) => ({
+  verificationId: doc.verification_id,
+  docType: doc.doc_type,
+  docTitle: doc.doc_title,
+  studentName: doc.full_name,
+  studentId: doc.student_id_number,
+  faculty: doc.faculty,
+  program: doc.program,
+  graduationYear: doc.graduation_year,
+  issuedAt: doc.issued_at,
+  txHash: doc.tx_hash
+});
 
 const DocumentController = {
   // 0. Cek apakah mahasiswa sudah punya dokumen aktif (dipanggil sebelum issue)
@@ -65,7 +81,8 @@ const DocumentController = {
       const fileHash = await HashService.hashFile(req.file.path);
 
       // 2. Simpan ke database dengan status "pending"
-      const filePath = req.file.path.replace(/\\/g, '/'); // Normalize path
+      // Simpan nama berkas saja (relatif terhadap folder uploads), bukan path absolut
+      const filePath = toStoredPath(req.file.path);
       const docInsertId = await DocumentModel.create({
         verificationId,
         studentId,
@@ -167,18 +184,7 @@ const DocumentController = {
       res.json({
         isValid: isValidOnChain && isHashValid,
         status: doc.status,
-        documentInfo: {
-          verificationId: doc.verification_id,
-          docType: doc.doc_type,
-          docTitle: doc.doc_title,
-          studentName: doc.full_name,
-          studentId: doc.student_id_number,
-          faculty: doc.faculty,
-          program: doc.program,
-          graduationYear: doc.graduation_year,
-          issuedAt: doc.issued_at,
-          txHash: doc.tx_hash
-        },
+        documentInfo: toPublicDocumentInfo(doc),
         revocationReason: doc.status === 'revoked' ? doc.revocation_reason : null
       });
 
@@ -215,7 +221,7 @@ const DocumentController = {
         return res.json({
           isValid: true,
           message: 'Document is authentic and unmodified',
-          documentInfo: doc
+          documentInfo: doc ? toPublicDocumentInfo(doc) : null
         });
       }
 
@@ -250,7 +256,7 @@ const DocumentController = {
       // Hash tidak cocok → bandingkan isi dokumen dengan file asli untuk menandai field yang berbeda
       let comparison = null;
       try {
-        comparison = await DocumentComparator.compareDocuments(doc.file_path, req.file.path, req.file.mimetype);
+        comparison = await DocumentComparator.compareDocuments(resolveStoredPath(doc.file_path), req.file.path, req.file.mimetype);
       } catch (compareError) {
         console.error('Document Compare Error:', compareError);
         comparison = { supported: false, reason: 'Dokumen tidak dapat dibaca untuk perbandingan.' };
@@ -260,15 +266,7 @@ const DocumentController = {
       return res.json({
         isValid: false,
         message: 'Document has been modified or is fake. Hash does not match.',
-        documentInfo: {
-          verificationId: doc.verification_id,
-          docType: doc.doc_type,
-          docTitle: doc.doc_title,
-          studentName: doc.full_name,
-          studentId: doc.student_id_number,
-          issuedAt: doc.issued_at,
-          txHash: doc.tx_hash
-        },
+        documentInfo: toPublicDocumentInfo(doc),
         comparison
       });
 
@@ -305,11 +303,12 @@ const DocumentController = {
         }
       }
 
-      if (!doc.file_path || !fs.existsSync(doc.file_path)) {
+      const fileOnDisk = resolveStoredPath(doc.file_path);
+      if (!fileOnDisk || !fs.existsSync(fileOnDisk)) {
         return res.status(404).json({ error: 'Document file not found' });
       }
 
-      res.download(doc.file_path, `${doc.verification_id}${path.extname(doc.file_path)}`);
+      res.download(fileOnDisk, `${doc.verification_id}${path.extname(fileOnDisk)}`);
     } catch (error) {
       console.error('Download Error:', error);
       res.status(500).json({ error: 'Failed to download document' });
@@ -350,9 +349,10 @@ const DocumentController = {
       }
 
       // Hapus file fisik dokumen jika ada
-      if (doc.file_path && fs.existsSync(doc.file_path)) {
+      const fileOnDisk = resolveStoredPath(doc.file_path);
+      if (fileOnDisk && fs.existsSync(fileOnDisk)) {
         try {
-          fs.unlinkSync(doc.file_path);
+          fs.unlinkSync(fileOnDisk);
         } catch (fileErr) {
           console.warn('Failed to delete physical file:', fileErr.message);
         }

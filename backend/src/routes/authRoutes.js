@@ -1,13 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const AuthController = require('../controllers/authController');
-const { verifyToken } = require('../middleware/authMiddleware');
-const { loginRateLimiter } = require('../middleware/rateLimiter');
+const { verifyToken, isAdmin } = require('../middleware/authMiddleware');
 
-// Public routes dengan rate limiting 10 percobaan per 15 menit
-router.post('/register', AuthController.register);
-router.post('/login', loginRateLimiter, AuthController.login);
-router.post('/student/login', loginRateLimiter, AuthController.studentLogin);
+// Pendaftaran akun hanya boleh dilakukan Admin. Tanpa ini siapa pun bisa
+// mendaftar dengan role 'admin' lalu menerbitkan/mencabut dokumen.
+router.post('/register', verifyToken, isAdmin, AuthController.register);
+
+// Public routes
+router.post('/login', AuthController.login);
+router.post('/student/login', AuthController.studentLogin);
 
 // Protected routes
 router.get('/profile', verifyToken, AuthController.getProfile);

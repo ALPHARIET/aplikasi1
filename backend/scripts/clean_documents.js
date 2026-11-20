@@ -1,6 +1,7 @@
 const mysql = require('mysql2/promise');
 const path = require('path');
 const fs = require('fs');
+const { resolveStoredPath } = require('../src/utils/uploadPath');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 async function main() {
@@ -26,12 +27,13 @@ async function main() {
       console.log(`- ID: ${doc.id} | ${doc.doc_title} | Mahasiswa: ${doc.full_name} (${doc.student_id_number}) | Status: ${doc.status}`);
       
       // Hapus berkas file fisik jika ada
-      if (doc.file_path && fs.existsSync(doc.file_path)) {
+      const fileOnDisk = resolveStoredPath(doc.file_path);
+      if (fileOnDisk && fs.existsSync(fileOnDisk)) {
         try {
-          fs.unlinkSync(doc.file_path);
-          console.log(`  🗑️ Berkas fisik dihapus: ${doc.file_path}`);
+          fs.unlinkSync(fileOnDisk);
+          console.log(`  🗑️ Berkas fisik dihapus: ${fileOnDisk}`);
         } catch (err) {
-          console.warn(`  ⚠️ Gagal menghapus file ${doc.file_path}:`, err.message);
+          console.warn(`  ⚠️ Gagal menghapus file ${fileOnDisk}:`, err.message);
         }
       }
 

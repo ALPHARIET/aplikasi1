@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../config/jwt');
 
 const authMiddleware = {
   // Verify JWT Token
@@ -12,7 +13,7 @@ const authMiddleware = {
     const token = authHeader.split(' ')[1];
 
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+      const decoded = jwt.verify(token, JWT_SECRET);
       req.user = decoded; // Berisi id, email, role, sub, studentId
       next();
     } catch (error) {

@@ -29,8 +29,9 @@ export const AuthProvider = ({ children }) => {
     checkUserLoggedIn();
   }, []);
 
-  const login = async (identifier, password) => {
-    const response = await api.post('/auth/login', { identifier, password });
+  // role: peran yang dipilih di halaman login; backend menolak (403) kalau tidak sama dengan peran akun
+  const login = async (identifier, password, role) => {
+    const response = await api.post('/auth/login', { identifier, password, role });
     localStorage.setItem('token', response.data.token);
     setUser(response.data.user);
     return response.data.user;
