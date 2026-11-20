@@ -15,22 +15,11 @@ import {
 import api from '../services/api';
 import DocumentDiffViewer from '../components/DocumentDiffViewer';
 import PublicLayout from '../components/public/PublicLayout';
-
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // sama dengan batas unggah di backend
-const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
+import { classifyResult, formatSize, validateVerifyFile } from '../utils/verifyOutcome';
 
 const focusRing = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-unib-blue focus-visible:ring-offset-2';
 
-// Backend mengirim pesan berbahasa Inggris; halaman ini menentukan jenis hasil dari isi respons
-// lalu menampilkan teks Indonesia sendiri.
-function classifyResult(result) {
-  if (result.isValid) return 'valid';
-  if (result.matchedDocument) return 'swapped';
-  if (result.revocationReason || /revoked/i.test(result.message || '')) return 'revoked';
-  if (/not registered/i.test(result.message || '')) return 'unregistered';
-  return 'modified';
-}
-
+// Teks Indonesia untuk tiap jenis hasil dari classifyResult
 const OUTCOME_COPY = {
   valid: {
     icon: ShieldCheck,
@@ -70,8 +59,6 @@ const OUTCOME_COPY = {
 };
 
 const DOC_TYPE_LABEL = { transkrip: 'Transkrip nilai', ijazah: 'Ijazah' };
-
-const formatSize = (bytes) => (bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
 
 const formatDate = (value) =>
   value ? new Date(value).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }) : '-';
@@ -130,16 +117,9 @@ export default function Verify() {
 
   const pickFile = (picked) => {
     if (!picked) return;
-    if (!ACCEPTED_TYPES.includes(picked.type)) {
-      setFileError('Format berkas tidak didukung. Gunakan PDF, JPG, atau PNG.');
-      return;
-    }
-    if (picked.size > MAX_FILE_SIZE) {
-      setFileError(`Berkas ${formatSize(picked.size)}, melebihi batas 5 MB. Gunakan berkas PDF asli dari pemilik transkrip.`);
-      return;
-    }
-    setFileError('');
-    setFile(picked);
+    const problem = validateVerifyFile(picked);
+    setFileError(problem);
+    if (!problem) setFile(picked);
   };
 
   const clearFile = () => {
