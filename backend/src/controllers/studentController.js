@@ -1,6 +1,34 @@
 const bcrypt = require('bcrypt');
+const fs = require('fs');
 const StudentModel = require('../models/studentModel');
 const UserModel = require('../models/userModel');
+const DocumentModel = require('../models/documentModel');
+const BlockchainService = require('../services/blockchainService');
+const { resolveStoredPath } = require('../utils/uploadPath');
+
+const STUDENT_DELETED_REASON = 'Data mahasiswa dihapus oleh Administrator.';
+
+// Cabut di blockchain semua dokumen mahasiswa yang masih aktif di sana. Dokumen yang tidak ada
+// di blockchain (mis. setelah Hardhat node di-restart) atau sudah dicabut dilewati.
+// Kalau satu pencabutan gagal, galatnya dilempar agar data mahasiswa tidak jadi dihapus.
+async function revokeActiveDocuments(docs) {
+  for (const doc of docs) {
+    if (!(await BlockchainService.isDocumentValid(doc.verification_id))) continue;
+    await BlockchainService.revokeDocument(doc.verification_id);
+    await DocumentModel.updateRevokeStatus(doc.verification_id, STUDENT_DELETED_REASON);
+  }
+}
+
+function deleteDocumentFiles(docs) {
+  for (const doc of docs) {
+    const fileOnDisk = resolveStoredPath(doc.file_path);
+    try {
+      if (fileOnDisk && fs.existsSync(fileOnDisk)) fs.unlinkSync(fileOnDisk);
+    } catch (fileErr) {
+      console.warn('Failed to delete physical file:', fileErr.message);
+    }
+  }
+}
 
 const StudentController = {
   // Get all students
@@ -127,14 +155,32 @@ const StudentController = {
   },
 
   // Delete student (Admin only)
+  // Baris dokumen ikut terhapus lewat ON DELETE CASCADE, jadi transkrip yang masih aktif
+  // dicabut dulu di blockchain dan berkasnya dihapus; kalau tidak, transkrip itu tetap
+  // terbaca valid di blockchain padahal datanya sudah tidak ada.
   delete: async (req, res) => {
     try {
       const id = req.params.id;
+      const student = await StudentModel.getById(id);
+      if (!student) {
+        return res.status(404).json({ error: 'Student not found' });
+      }
+
+      const docs = await DocumentModel.getByStudentId(id);
+      try {
+        await revokeActiveDocuments(docs);
+      } catch (revokeError) {
+        console.error('Revoke On Student Delete Error:', revokeError);
+        return res.status(500).json({
+          error: 'Gagal mencabut transkrip mahasiswa ini di blockchain, jadi datanya tidak dihapus. Coba lagi.'
+        });
+      }
+
       const affectedRows = await StudentModel.delete(id);
-      
       if (affectedRows === 0) {
         return res.status(404).json({ error: 'Student not found' });
       }
+      deleteDocumentFiles(docs);
 
       res.json({ message: 'Student deleted successfully' });
     } catch (error) {

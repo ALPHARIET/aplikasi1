@@ -647,8 +647,8 @@ export default function StudentsManager() {
       <ConfirmDialog
         isOpen={!!deleteTarget}
         title="Hapus Data Mahasiswa?"
-        message={`Apakah Anda yakin ingin menghapus data mahasiswa "${deleteTarget?.full_name}" (NIM: ${deleteTarget?.student_id_number})? Tindakan ini tidak dapat dibatalkan.`}
-        confirmLabel={deleting ? 'Menghapus...' : 'Ya, Hapus'}
+        message={`Data mahasiswa "${deleteTarget?.full_name}" (NIM: ${deleteTarget?.student_id_number}) akan dihapus. Transkrip yang masih aktif akan dicabut di blockchain dan tidak bisa diverifikasi lagi. Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel={deleting ? 'Menghapus...' : 'Hapus mahasiswa'}
         cancelLabel="Batal"
         danger
         onConfirm={handleDelete}

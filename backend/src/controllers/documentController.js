@@ -104,23 +104,36 @@ const DocumentController = {
 
       const verificationId = generateVerificationId(student);
 
-      // 1. Generate SHA-256 Hash dari file
-      const fileHash = await HashService.hashFile(req.file.path);
+      let docInsertId = null;
+      let fileHash;
+      let bcReceipt;
+      try {
+        // 1. Generate SHA-256 Hash dari file
+        fileHash = await HashService.hashFile(req.file.path);
 
-      // 2. Simpan ke database dengan status "pending"
-      // Simpan nama berkas saja (relatif terhadap folder uploads), bukan path absolut
-      const filePath = toStoredPath(req.file.path);
-      const docInsertId = await DocumentModel.create({
-        verificationId,
-        studentId,
-        docType,
-        docTitle,
-        filePath,
-        fileHash
-      });
+        // 2. Simpan ke database dengan status "pending"
+        // Simpan nama berkas saja (relatif terhadap folder uploads), bukan path absolut
+        docInsertId = await DocumentModel.create({
+          verificationId,
+          studentId,
+          docType,
+          docTitle,
+          filePath: toStoredPath(req.file.path),
+          fileHash
+        });
 
-      // 3. Issue ke Blockchain
-      const bcReceipt = await BlockchainService.issueDocument(verificationId, fileHash);
+        // 3. Issue ke Blockchain
+        bcReceipt = await BlockchainService.issueDocument(verificationId, fileHash);
+      } catch (error) {
+        // Belum tercatat di blockchain: batalkan baris pending dan buang berkasnya,
+        // supaya tidak ada dokumen "pending" yatim di database maupun di folder uploads
+        if (docInsertId) {
+          await DocumentModel.deleteById(docInsertId).catch((cleanupError) =>
+            console.error('Gagal menghapus baris dokumen pending:', cleanupError));
+        }
+        discardUpload(req.file);
+        throw error;
+      }
 
       // 4. Update status di database menjadi "issued"
       await DocumentModel.updateIssueStatus(
@@ -272,6 +285,20 @@ const DocumentController = {
             verificationId: matchingDoc.verification_id,
             docTitle: matchingDoc.doc_title,
             docType: matchingDoc.doc_type
+          }
+        });
+      }
+
+      // Hash tidak cocok, tapi data dan berkas aslinya sudah tidak ada di server
+      // (mis. baris database terhapus): hasilnya tetap "diubah", tanpa perbandingan per-field
+      if (!doc) {
+        return res.json({
+          isValid: false,
+          message: 'Document has been modified or is fake. Hash does not match.',
+          documentInfo: null,
+          comparison: {
+            supported: false,
+            reason: 'Berkas asli tidak tersedia di server, jadi bagian yang berubah tidak bisa ditandai.'
           }
         });
       }
