@@ -272,11 +272,49 @@ function buildSegments(items) {
   return segments;
 }
 
-function parseTranscript(pages) {
+// Label bahasa Inggris di bawah label identitas; bukan bagian dari nilai field
+const IDENTITY_ENGLISH_LABELS = /^(name|studentidentificationnumber|place,dateofbirth|universitycode|educationlevel|studyprogram|graduationdate|code)$/;
+
+const IDENTITY_LABELS = [
+  { section: 'identitas_mahasiswa', key: 'nama', label: 'Nama', match: k => k === 'nama/' || k === 'nama/name' },
+  { section: 'identitas_mahasiswa', key: 'nim', label: 'NIM', match: k => k.startsWith('nomorindukmahasiswa') },
+  { section: 'identitas_mahasiswa', key: 'ttl', label: 'Tempat, Tanggal Lahir', match: k => k.startsWith('tempat,tanggallahir') },
+  { section: 'identitas_mahasiswa', key: 'kode_pt', label: 'Kode Perguruan Tinggi', match: k => k.startsWith('kodeperguruantinggi') },
+  { section: 'keterangan_pendidikan', key: 'jenjang', label: 'Jenjang Pendidikan', match: k => k.startsWith('jenjangpendidikan') },
+  { section: 'keterangan_pendidikan', key: 'prodi', label: 'Program Studi', match: k => k.startsWith('programstudi') },
+  { section: 'keterangan_pendidikan', key: 'kode_prodi', label: 'Kode Program Studi', match: k => k === 'kode/code' || k === 'kode/' },
+  { section: 'keterangan_pendidikan', key: 'tanggal_lulus', label: 'Tanggal Lulus', match: k => k.startsWith('tanggallulus') }
+];
+
+// Penanda posisi yang dipakai lebih dari satu bagian
+const findJudulSeg = (ctx) => ctx.findSeg(k => k.startsWith('judulskripsi'));
+const findSkalaSeg = (ctx) => ctx.findSeg(k => k.startsWith('skalanilai'));
+const findDekanSeg = (ctx) => ctx.findSeg(k => k.startsWith('dekan'));
+const findTableHeader = (ctx) => ctx.findSeg(k => k === 'no' || k.startsWith('no') && k.includes('kode/'));
+
+// Item di sebelah kanan ":" pada segmen yang sama
+function valueAfterColon(seg) {
+  const colonIdx = seg.parts.findIndex(p => p.str.includes(':'));
+  const colonPart = seg.parts[colonIdx];
+  if (colonIdx < 0) return [];
+  const after = seg.parts.slice(colonIdx + 1);
+  const tail = colonPart.str.split(':').slice(1).join(':').trim();
+  if (tail) return [{ ...colonPart, str: tail }, ...after];
+  return after;
+}
+
+// Segmen terdekat tepat di atas ref (kolom yang sama), dibatasi minY
+function segAbove(segments, ref, minY = -Infinity) {
+  return segments
+    .filter(s => s.page === ref.page && s.y1 <= ref.y0 + 1 && s.y0 > minY && s.x1 > ref.x0 - 20 && s.x0 < ref.x1 + 20 && s !== ref)
+    .sort((a, b) => b.y0 - a.y0)[0];
+}
+
+// Data bersama untuk semua pengekstrak bagian; field ditambahkan ke ctx.fields sesuai urutan
+function createParseContext(pages) {
   const items = pages.flatMap(p => p.items);
   const segments = buildSegments(items);
   const fields = [];
-
   const findSeg = (pred) => segments.find(s => pred(s.key, s));
   const addField = (section, key, label, srcItems, extraBox) => {
     const box = extraBox || unionBox(srcItems);
@@ -288,11 +326,12 @@ function parseTranscript(pages) {
       boxes: box ? [toBox(box)] : []
     });
   };
-
   const titleSeg = findSeg(k => k.startsWith('transkripakademik'));
-  const titlePage = titleSeg ? titleSeg.page : 0;
+  return { pages, items, segments, fields, findSeg, addField, titleSeg, titlePage: titleSeg ? titleSeg.page : 0 };
+}
 
-  // --- Logo: gambar terbesar di area kop halaman pertama ---
+// Logo: gambar terbesar di area kop halaman pertama
+function extractLogo({ pages, fields, titleSeg, titlePage }) {
   const kopBottom = titleSeg ? titleSeg.y0 : pages[0].height * 0.25;
   const logos = pages[titlePage].images
     .filter(img => img.y1 <= kopBottom + 30)
@@ -304,40 +343,34 @@ function parseTranscript(pages) {
       boxes: [toBox(logos[0])]
     });
   }
+}
 
-  // --- Kop surat (kementerian, universitas, dasar pendirian) ---
-  if (titleSeg) {
-    const kopSegs = segments.filter(s => s.page === titlePage && s.y1 <= titleSeg.y0 + 1);
-    const kementerian = kopSegs.filter(s => s.key.includes('kementerian'));
-    const universitas = kopSegs.filter(s => !s.key.includes('kementerian') && /^(universitas|institut|politeknik|sekolahtinggi)/.test(s.key));
-    const dasar = kopSegs.filter(s => !kementerian.includes(s) && !universitas.includes(s));
-    addField('kop', 'kop.kementerian', 'Nama Kementerian', kementerian.flatMap(s => s.parts));
-    addField('kop', 'kop.universitas', 'Nama Universitas', universitas.flatMap(s => s.parts));
-    addField('kop', 'kop.dasar', 'Dasar Pendirian', dasar.flatMap(s => s.parts));
-    addField('kop', 'kop.judul', 'Judul Dokumen', titleSeg.parts);
-  }
+// Kop surat: kementerian, universitas, dasar pendirian, judul dokumen
+function extractKop({ segments, addField, titleSeg, titlePage }) {
+  if (!titleSeg) return;
+  const kopSegs = segments.filter(s => s.page === titlePage && s.y1 <= titleSeg.y0 + 1);
+  const kementerian = kopSegs.filter(s => s.key.includes('kementerian'));
+  const universitas = kopSegs.filter(s => !s.key.includes('kementerian') && /^(universitas|institut|politeknik|sekolahtinggi)/.test(s.key));
+  const dasar = kopSegs.filter(s => !kementerian.includes(s) && !universitas.includes(s));
+  addField('kop', 'kop.kementerian', 'Nama Kementerian', kementerian.flatMap(s => s.parts));
+  addField('kop', 'kop.universitas', 'Nama Universitas', universitas.flatMap(s => s.parts));
+  addField('kop', 'kop.dasar', 'Dasar Pendirian', dasar.flatMap(s => s.parts));
+  addField('kop', 'kop.judul', 'Judul Dokumen', titleSeg.parts);
+}
 
-  // --- Nomor surat ---
+function extractNomorSurat({ items, findSeg, addField }) {
   const nomorSeg = findSeg(k => k.startsWith('nomor/number'));
-  if (nomorSeg) {
-    // Ambil satu baris penuh, karena teks yang diedit bisa memutus segmen
-    const lineItems = items.filter(it => it.page === nomorSeg.page && Math.abs(it.baseline - nomorSeg.baseline) < 1.5);
-    addField('nomor_surat', 'nomor_surat', 'Nomor Surat / Nomor Ijazah', lineItems);
-  }
+  if (!nomorSeg) return;
+  // Ambil satu baris penuh, karena teks yang diedit bisa memutus segmen
+  const lineItems = items.filter(it => it.page === nomorSeg.page && Math.abs(it.baseline - nomorSeg.baseline) < 1.5);
+  addField('nomor_surat', 'nomor_surat', 'Nomor Surat / Nomor Ijazah', lineItems);
+}
 
-  // --- Identitas mahasiswa & keterangan pendidikan (label → nilai di sebelah kanan) ---
-  const tableHeader = findSeg(k => k === 'no' || k.startsWith('no') && k.includes('kode/'));
-  const identityLabels = [
-    { section: 'identitas_mahasiswa', key: 'nama', label: 'Nama', match: k => k === 'nama/' || k === 'nama/name' },
-    { section: 'identitas_mahasiswa', key: 'nim', label: 'NIM', match: k => k.startsWith('nomorindukmahasiswa') },
-    { section: 'identitas_mahasiswa', key: 'ttl', label: 'Tempat, Tanggal Lahir', match: k => k.startsWith('tempat,tanggallahir') },
-    { section: 'identitas_mahasiswa', key: 'kode_pt', label: 'Kode Perguruan Tinggi', match: k => k.startsWith('kodeperguruantinggi') },
-    { section: 'keterangan_pendidikan', key: 'jenjang', label: 'Jenjang Pendidikan', match: k => k.startsWith('jenjangpendidikan') },
-    { section: 'keterangan_pendidikan', key: 'prodi', label: 'Program Studi', match: k => k.startsWith('programstudi') },
-    { section: 'keterangan_pendidikan', key: 'kode_prodi', label: 'Kode Program Studi', match: k => k === 'kode/code' || k === 'kode/' },
-    { section: 'keterangan_pendidikan', key: 'tanggal_lulus', label: 'Tanggal Lulus', match: k => k.startsWith('tanggallulus') }
-  ];
-  const found = identityLabels
+// Identitas mahasiswa (kolom kiri) dan keterangan pendidikan (kolom kanan): label → nilai di kanannya
+function extractIdentitas(ctx) {
+  const { pages, items, findSeg, addField, titlePage } = ctx;
+  const tableHeader = findTableHeader(ctx);
+  const found = IDENTITY_LABELS
     .map(def => ({ ...def, seg: findSeg((k, s) => def.match(k) && s.page === titlePage && (!tableHeader || s.y0 < tableHeader.y0)) }))
     .filter(def => def.seg);
   const leftCol = found.filter(d => d.section === 'identitas_mahasiswa');
@@ -355,13 +388,16 @@ function parseTranscript(pages) {
       const valueItems = items.filter(it =>
         it.page === def.seg.page && it.x0 > def.seg.x0 + 10 && it.x0 < right &&
         it.cy >= top && it.cy < bottom &&
-        !def.seg.parts.includes(it) && !compact(it.str).match(/^(name|studentidentificationnumber|place,dateofbirth|universitycode|educationlevel|studyprogram|graduationdate|code)$/)
+        !def.seg.parts.includes(it) && !compact(it.str).match(IDENTITY_ENGLISH_LABELS)
       );
       addField(def.section, def.key, def.label, valueItems);
     });
   }
+}
 
-  // --- Tabel nilai ---
+// Kelompokkan kode MK per tabel (satu halaman bisa punya dua tabel berdampingan),
+// masing-masing dengan posisi header kolom SKS, Nilai, Bobot, Mutu
+function findCourseGroups(items) {
   const headerItems = (word) => items.filter(it => compact(it.str).startsWith(word));
   const sksHdr = headerItems('sks/');
   const nilaiHdr = headerItems('nilai/');
@@ -388,106 +424,105 @@ function parseTranscript(pages) {
     }
     groups.get(id).codes.push(code);
   }
+  return [...groups.values()];
+}
 
-  for (const g of groups.values()) {
-    const cS = g.sks.cx, cG = g.nilai.cx, cB = g.bobot.cx, cM = g.mutu.cx;
-    const colBounds = {
-      sks: [cS - (cG - cS) / 2, (cS + cG) / 2],
-      nilai: [(cS + cG) / 2, (cG + cB) / 2],
-      bobot: [(cG + cB) / 2, (cB + cM) / 2],
-      mutu: [(cB + cM) / 2, cM + (cM - cB) / 2]
-    };
-    g.codes.sort((a, b) => a.cy - b.cy);
-    let top = g.headerBottom;
-    g.codes.forEach((code, i) => {
-      // Isi sel tabel rata-tengah vertikal → batas bawah baris simetris terhadap kode MK
-      let bottom = 2 * code.cy - top;
-      const next = g.codes[i + 1];
-      if (next) bottom = Math.max(code.cy + 3, Math.min(bottom, next.cy - 3));
-      const band = { page: code.page, y0: top, y1: bottom };
-
-      // Nomor baris = angka terdekat di kiri kode MK (bukan angka mutu "0" dari grup kolom sebelahnya)
-      const noItem = items
-        .filter(it =>
-          it.page === code.page && /^\d{1,3}$/.test(it.str) &&
-          it.x1 <= code.x0 + 1 && it.x0 > code.x0 - 45 && it.cy >= band.y0 && it.cy < band.y1
-        )
-        .sort((a, b) => b.x1 - a.x1)[0];
-      const rowNo = noItem ? noItem.str : `?${code.str}`;
-      const rowLeft = noItem ? noItem.x0 - 3 : code.x0 - 3;
-      const cells = {
-        kode: { x0: code.x0 - 2, x1: code.x1 + 2 },
-        nama: { x0: code.x1 + 2, x1: colBounds.sks[0] },
-        sks: { x0: colBounds.sks[0], x1: colBounds.sks[1] },
-        nilai: { x0: colBounds.nilai[0], x1: colBounds.nilai[1] },
-        bobot: { x0: colBounds.bobot[0], x1: colBounds.bobot[1] },
-        mutu: { x0: colBounds.mutu[0], x1: colBounds.mutu[1] }
-      };
-      for (const [col, label] of COURSE_COLUMNS) {
-        const rect = { page: code.page, x0: cells[col].x0, x1: cells[col].x1, y0: band.y0, y1: band.y1 };
-        const cellItems = col === 'kode' ? [code] : items.filter(it => inRect(it, rect));
-        fields.push({
-          section: 'tabel_nilai',
-          key: `mk.${rowNo}.${col}`,
-          label: `No. ${rowNo} — ${label}`,
-          row: rowNo,
-          value: joinItems(cellItems),
-          boxes: [toBox(rect, 0)]
-        });
-      }
-      fields.push({
-        section: 'tabel_nilai', key: `mk.${rowNo}.row`, row: rowNo, rowOnly: true,
-        boxes: [toBox({ page: code.page, x0: rowLeft, x1: colBounds.mutu[1], y0: band.y0, y1: band.y1 }, 0)]
-      });
-      top = bottom;
-    });
-  }
-
-  // --- Rekapitulasi ---
-  const valueAfterColon = (seg) => {
-    // Ambil item di sebelah kanan ":" pada baris yang sama
-    const colonIdx = seg.parts.findIndex(p => p.str.includes(':'));
-    const colonPart = seg.parts[colonIdx];
-    if (colonIdx < 0) return [];
-    const after = seg.parts.slice(colonIdx + 1);
-    const tail = colonPart.str.split(':').slice(1).join(':').trim();
-    if (tail) return [{ ...colonPart, str: tail }, ...after];
-    return after;
+// Satu field per sel (kode, nama, sks, nilai, bobot, mutu) + satu kotak baris penuh
+function extractCourseRows({ items, fields }, g) {
+  const cS = g.sks.cx, cG = g.nilai.cx, cB = g.bobot.cx, cM = g.mutu.cx;
+  const colBounds = {
+    sks: [cS - (cG - cS) / 2, (cS + cG) / 2],
+    nilai: [(cS + cG) / 2, (cG + cB) / 2],
+    bobot: [(cG + cB) / 2, (cB + cM) / 2],
+    mutu: [(cB + cM) / 2, cM + (cM - cB) / 2]
   };
+  g.codes.sort((a, b) => a.cy - b.cy);
+  let top = g.headerBottom;
+  g.codes.forEach((code, i) => {
+    // Isi sel tabel rata-tengah vertikal → batas bawah baris simetris terhadap kode MK
+    let bottom = 2 * code.cy - top;
+    const next = g.codes[i + 1];
+    if (next) bottom = Math.max(code.cy + 3, Math.min(bottom, next.cy - 3));
+    const band = { page: code.page, y0: top, y1: bottom };
+
+    // Nomor baris = angka terdekat di kiri kode MK (bukan angka mutu "0" dari grup kolom sebelahnya)
+    const noItem = items
+      .filter(it =>
+        it.page === code.page && /^\d{1,3}$/.test(it.str) &&
+        it.x1 <= code.x0 + 1 && it.x0 > code.x0 - 45 && it.cy >= band.y0 && it.cy < band.y1
+      )
+      .sort((a, b) => b.x1 - a.x1)[0];
+    const rowNo = noItem ? noItem.str : `?${code.str}`;
+    const rowLeft = noItem ? noItem.x0 - 3 : code.x0 - 3;
+    const cells = {
+      kode: { x0: code.x0 - 2, x1: code.x1 + 2 },
+      nama: { x0: code.x1 + 2, x1: colBounds.sks[0] },
+      sks: { x0: colBounds.sks[0], x1: colBounds.sks[1] },
+      nilai: { x0: colBounds.nilai[0], x1: colBounds.nilai[1] },
+      bobot: { x0: colBounds.bobot[0], x1: colBounds.bobot[1] },
+      mutu: { x0: colBounds.mutu[0], x1: colBounds.mutu[1] }
+    };
+    for (const [col, label] of COURSE_COLUMNS) {
+      const rect = { page: code.page, x0: cells[col].x0, x1: cells[col].x1, y0: band.y0, y1: band.y1 };
+      const cellItems = col === 'kode' ? [code] : items.filter(it => inRect(it, rect));
+      fields.push({
+        section: 'tabel_nilai',
+        key: `mk.${rowNo}.${col}`,
+        label: `No. ${rowNo} — ${label}`,
+        row: rowNo,
+        value: joinItems(cellItems),
+        boxes: [toBox(rect, 0)]
+      });
+    }
+    fields.push({
+      section: 'tabel_nilai', key: `mk.${rowNo}.row`, row: rowNo, rowOnly: true,
+      boxes: [toBox({ page: code.page, x0: rowLeft, x1: colBounds.mutu[1], y0: band.y0, y1: band.y1 }, 0)]
+    });
+    top = bottom;
+  });
+}
+
+function extractTabelNilai(ctx) {
+  for (const group of findCourseGroups(ctx.items)) extractCourseRows(ctx, group);
+}
+
+// Rekapitulasi: total SKS, IPK, dan yudisium (yudisium bisa berlanjut ke baris di bawahnya)
+function extractRekapitulasi(ctx) {
+  const { items, findSeg, addField } = ctx;
   const sksSeg = findSeg(k => k.includes('totalsks') || k.includes('totalcredits'));
   if (sksSeg) addField('rekapitulasi', 'total_sks', 'Total SKS', valueAfterColon(sksSeg), sksSeg);
   const ipkSeg = findSeg(k => k.includes('gradepointaverage'));
   if (ipkSeg) addField('rekapitulasi', 'ipk', 'IPK', valueAfterColon(ipkSeg), ipkSeg);
 
-  const judulSeg = findSeg(k => k.startsWith('judulskripsi'));
-  const skalaSeg = findSeg(k => k.startsWith('skalanilai'));
   const yudSeg = findSeg(k => k.includes('graduationjudicialpredicate'));
-  if (yudSeg) {
-    const limit = judulSeg && judulSeg.page === yudSeg.page ? judulSeg.y0 - 1 : yudSeg.y1 + 20;
-    const below = items.filter(it =>
-      it.page === yudSeg.page && it.x0 >= yudSeg.x0 - 5 && it.cy > yudSeg.y1 && it.cy < limit
-    );
-    const valueItems = [...valueAfterColon(yudSeg), ...below];
-    addField('rekapitulasi', 'yudisium', 'Yudisium', valueItems, unionBox([yudSeg, ...valueItems]));
-  }
+  if (!yudSeg) return;
+  const judulSeg = findJudulSeg(ctx);
+  const limit = judulSeg && judulSeg.page === yudSeg.page ? judulSeg.y0 - 1 : yudSeg.y1 + 20;
+  const below = items.filter(it =>
+    it.page === yudSeg.page && it.x0 >= yudSeg.x0 - 5 && it.cy > yudSeg.y1 && it.cy < limit
+  );
+  const valueItems = [...valueAfterColon(yudSeg), ...below];
+  addField('rekapitulasi', 'yudisium', 'Yudisium', valueItems, unionBox([yudSeg, ...valueItems]));
+}
 
-  // --- Judul skripsi ---
-  if (judulSeg) {
-    const limit = skalaSeg && skalaSeg.page === judulSeg.page ? skalaSeg.y0 - 1 : judulSeg.y1 + 30;
-    const below = items.filter(it => it.page === judulSeg.page && it.cy > judulSeg.y1 && it.cy < limit);
-    const valueItems = [...valueAfterColon(judulSeg), ...below];
-    addField('judul_skripsi', 'judul_skripsi', 'Judul Skripsi', valueItems, unionBox([judulSeg, ...valueItems]));
-  }
+// Judul skripsi: setelah ":" lalu baris-baris di bawahnya sampai bagian skala nilai
+function extractJudulSkripsi(ctx) {
+  const judulSeg = findJudulSeg(ctx);
+  if (!judulSeg) return;
+  const skalaSeg = findSkalaSeg(ctx);
+  const limit = skalaSeg && skalaSeg.page === judulSeg.page ? skalaSeg.y0 - 1 : judulSeg.y1 + 30;
+  const below = ctx.items.filter(it => it.page === judulSeg.page && it.cy > judulSeg.y1 && it.cy < limit);
+  const valueItems = [...valueAfterColon(judulSeg), ...below];
+  ctx.addField('judul_skripsi', 'judul_skripsi', 'Judul Skripsi', valueItems, unionBox([judulSeg, ...valueItems]));
+}
 
-  // --- Pengesahan ---
-  const dekanSeg = findSeg(k => k.startsWith('dekan'));
+// Pengesahan: tempat & tanggal, jabatan, nama penandatangan, NIP
+function extractPengesahan(ctx) {
+  const { segments, findSeg, addField } = ctx;
+  const dekanSeg = findDekanSeg(ctx);
   const nipSeg = findSeg(k => /^nip\.?\d/.test(k) || k.startsWith('nip'));
-  const pengesahanLeft = dekanSeg ? dekanSeg.x0 - 10 : Infinity;
-  const segAbove = (ref, minY = -Infinity) => segments
-    .filter(s => s.page === ref.page && s.y1 <= ref.y0 + 1 && s.y0 > minY && s.x1 > ref.x0 - 20 && s.x0 < ref.x1 + 20 && s !== ref)
-    .sort((a, b) => b.y0 - a.y0)[0];
   if (dekanSeg) {
-    const dateSeg = segAbove(dekanSeg);
+    const dateSeg = segAbove(segments, dekanSeg);
     if (dateSeg) addField('pengesahan', 'tanggal_pengesahan', 'Tempat & Tanggal', dateSeg.parts);
     const jabatan = segments.filter(s =>
       s.page === dekanSeg.page && s.y0 >= dekanSeg.y0 - 1 && s.y0 < dekanSeg.y1 + 12 && Math.abs(s.x0 - dekanSeg.x0) < 15
@@ -495,21 +530,42 @@ function parseTranscript(pages) {
     addField('pengesahan', 'jabatan', 'Jabatan Penandatangan', jabatan.flatMap(s => s.parts));
   }
   if (nipSeg) {
-    const nameSeg = segAbove(nipSeg, dekanSeg && dekanSeg.page === nipSeg.page ? dekanSeg.y1 + 12 : -Infinity);
+    const nameSeg = segAbove(segments, nipSeg, dekanSeg && dekanSeg.page === nipSeg.page ? dekanSeg.y1 + 12 : -Infinity);
     if (nameSeg) addField('pengesahan', 'nama_penandatangan', 'Nama Penandatangan', nameSeg.parts);
     addField('pengesahan', 'nip', 'NIP', nipSeg.parts);
   }
+}
 
-  // --- Skala nilai ---
-  if (skalaSeg) {
-    const pageH = pages[skalaSeg.page].height;
-    const skalaItems = items.filter(it =>
-      it.page === skalaSeg.page && it.cy > skalaSeg.y1 && it.cy < pageH && it.x1 < pengesahanLeft
-    );
-    addField('skala_nilai', 'skala_nilai', 'Skala Nilai', skalaItems, unionBox([skalaSeg, ...skalaItems]));
-  }
+// Skala nilai: semua teks di bawah judulnya, di kiri blok pengesahan
+function extractSkalaNilai(ctx) {
+  const skalaSeg = findSkalaSeg(ctx);
+  if (!skalaSeg) return;
+  const dekanSeg = findDekanSeg(ctx);
+  const pengesahanLeft = dekanSeg ? dekanSeg.x0 - 10 : Infinity;
+  const pageH = ctx.pages[skalaSeg.page].height;
+  const skalaItems = ctx.items.filter(it =>
+    it.page === skalaSeg.page && it.cy > skalaSeg.y1 && it.cy < pageH && it.x1 < pengesahanLeft
+  );
+  ctx.addField('skala_nilai', 'skala_nilai', 'Skala Nilai', skalaItems, unionBox([skalaSeg, ...skalaItems]));
+}
 
-  return fields;
+// Urutan ini menentukan urutan field di hasil perbandingan; jangan diubah sembarangan
+const SECTION_EXTRACTORS = [
+  extractLogo,
+  extractKop,
+  extractNomorSurat,
+  extractIdentitas,
+  extractTabelNilai,
+  extractRekapitulasi,
+  extractJudulSkripsi,
+  extractPengesahan,
+  extractSkalaNilai
+];
+
+function parseTranscript(pages) {
+  const ctx = createParseContext(pages);
+  for (const extract of SECTION_EXTRACTORS) extract(ctx);
+  return ctx.fields;
 }
 
 // ============================================================
