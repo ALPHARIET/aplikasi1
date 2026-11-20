@@ -127,9 +127,21 @@ diterbitkan ulang. File PDF dibuat deterministik, jadi file `asli/` selalu cocok
 - Jika `CONTRACT_ADDRESS` diisi di `.env`, nilainya menimpa `deployment.json`. Pastikan sama dengan alamat hasil deploy terbaru, atau kosongkan saja.
 - Frontend memanggil API di `http://localhost:5000/api/v1` (`frontend/src/services/api.js`), jadi backend harus berjalan di port 5000.
 
-## Testing smart contract
+## Testing
 
-```bash
-cd blockchain
-npx hardhat test
-```
+Semua test memakai test runner bawaan Node (`node --test`), tanpa dependensi tambahan.
+
+| Perintah | Isi | Butuh |
+|---|---|---|
+| `cd blockchain && npm test` | 28 test smart contract | - |
+| `cd backend && npm run test:unit` | `uploadPath`, `hashService`, snapshot `documentComparator` | data demo (`npm run seed:demo`) |
+| `cd backend && npm test` | unit + integrasi API: login dan tab peran, register khusus admin, terbit, verifikasi (valid, diubah, tidak terdaftar, ID tertukar, dicabut), unduh, hapus | MySQL, Hardhat node + deploy, data demo |
+| `cd frontend && npm test` | logika halaman verifikasi, `sha256Hex`, helper formulir terbit | - |
+| `cd frontend && npm run test:e2e` | Chrome headless: beranda, verifikasi asli/palsu, login salah tab, terbitkan + modal duplikat | semua layanan berjalan (Terminal 1-4) dan data demo |
+
+Catatan:
+
+- Test integrasi backend membuat ulang database **`diploma_registry_test`** setiap dijalankan. Database utama (`DB_NAME` di `.env`) tidak disentuh.
+- Snapshot `documentComparator` (`backend/test/unit/documentComparator.test.js.snapshot`) mengunci hasil pembacaan 10 pasang transkrip demo. Kalau perubahan pada comparator memang disengaja, perbarui dengan `npm run test:update-snapshots` lalu periksa diff-nya.
+- Test E2E memakai Chrome di `C:/Program Files/Google/Chrome/Application/chrome.exe`; ganti lewat variabel `CHROME_PATH`. Mahasiswa dan dokumen uji yang dibuatnya dihapus lagi di akhir.
+- Pesan verifikasi berbahasa Inggris dari backend (`revoked`, `not registered`) dibaca `frontend/src/utils/verifyOutcome.js`. Test integrasi backend menguncinya, jadi jangan ubah pesannya tanpa menyesuaikan file itu.
