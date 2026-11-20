@@ -48,7 +48,10 @@ async function startTestServer() {
       return Object.fromEntries([...body.entries()].map(([k, v]) =>
         [k, typeof v === 'string' ? v : `[berkas ${v.name}, ${v.size} byte, ${v.type}]`]));
     }
-    if (body && typeof body === 'object' && 'password' in body) return { ...body, password: '***' };
+    // Semua field kata sandi (password, currentPassword, newPassword, confirmPassword) disamarkan
+    if (body && typeof body === 'object') {
+      return Object.fromEntries(Object.entries(body).map(([k, v]) => [k, /password/i.test(k) ? '***' : v]));
+    }
     return body ?? null;
   };
 
@@ -75,7 +78,10 @@ async function startTestServer() {
         // Token JWT di response disensor agar bukti aman dibagikan
         response: typeof data === 'string'
           ? `[${res.headers.get('content-type')}, ${text.length} byte]`
-          : JSON.stringify(data).replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, (jwt) => `${jwt.slice(0, 12)}…(disensor)`).slice(0, 400)
+          : JSON.stringify(data)
+            .replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, (jwt) => `${jwt.slice(0, 12)}…(disensor)`)
+            .replace(/("\w*[Pp]assword":)"[^"]*"/g, '$1"***"')
+            .slice(0, 400)
       });
     }
     return { status: res.status, data, headers: res.headers };
