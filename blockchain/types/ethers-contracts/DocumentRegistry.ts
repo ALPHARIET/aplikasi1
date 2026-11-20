@@ -37,7 +37,7 @@ decodeFunctionResult(functionFragment: 'verifyHash', data: BytesLike): Result;
     export namespace DocumentIssuedEvent {
       export type InputTuple = [docId: string, documentHash: BytesLike, issuer: AddressLike, issuedAt: BigNumberish];
       export type OutputTuple = [docId: string, documentHash: string, issuer: string, issuedAt: bigint];
-      export interface OutputObject {docId: string, documentHash: string, issuer: string, issuedAt: bigint };
+      export interface OutputObject {docId: string, documentHash: string, issuer: string, issuedAt: bigint }
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -49,7 +49,7 @@ decodeFunctionResult(functionFragment: 'verifyHash', data: BytesLike): Result;
     export namespace DocumentRevokedEvent {
       export type InputTuple = [docId: string, revokedBy: AddressLike, revokedAt: BigNumberish];
       export type OutputTuple = [docId: string, revokedBy: string, revokedAt: bigint];
-      export interface OutputObject {docId: string, revokedBy: string, revokedAt: bigint };
+      export interface OutputObject {docId: string, revokedBy: string, revokedAt: bigint }
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -61,7 +61,7 @@ decodeFunctionResult(functionFragment: 'verifyHash', data: BytesLike): Result;
     export namespace OwnershipTransferredEvent {
       export type InputTuple = [previousOwner: AddressLike, newOwner: AddressLike];
       export type OutputTuple = [previousOwner: string, newOwner: string];
-      export interface OutputObject {previousOwner: string, newOwner: string };
+      export interface OutputObject {previousOwner: string, newOwner: string }
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
