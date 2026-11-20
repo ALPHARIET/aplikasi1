@@ -23,6 +23,47 @@ const toPublicDocumentInfo = (doc) => ({
   txHash: doc.tx_hash
 });
 
+// Hapus berkas unggahan sementara dari disk. Aman dipanggil walau berkasnya sudah tidak ada.
+const discardUpload = (file) => {
+  if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
+};
+
+// Tolak permintaan unggah: buang berkasnya dulu, lalu kirim respons galat
+const rejectUpload = (res, file, status, body) => {
+  discardUpload(file);
+  return res.status(status).json(body);
+};
+
+// Format: DOC-<tahun>-<NIM>-<6 karakter acak>, mis. DOC-2026-G1A022001-K3J9QZ
+const generateVerificationId = (student) => {
+  const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `DOC-${new Date().getFullYear()}-${student.student_id_number}-${randomStr}`;
+};
+
+// Permintaan transkrip hanya boleh dipakai kalau milik mahasiswa yang sama dan masih pending
+const isUsableRequest = (transcriptReq, studentId) =>
+  !!transcriptReq &&
+  Number(transcriptReq.student_id) === Number(studentId) &&
+  transcriptReq.status === 'pending';
+
+// Berkas asli yang terdaftar dengan Verification ID lain (pengguna salah memasangkan ID)
+const findSwappedDocument = async (fileHash, verificationId) => {
+  const matchingDoc = await DocumentModel.getByFileHash(fileHash);
+  if (!matchingDoc || matchingDoc.verification_id === verificationId) return null;
+  const isAuthentic = await BlockchainService.verifyHash(matchingDoc.verification_id, fileHash);
+  return isAuthentic ? matchingDoc : null;
+};
+
+// Bandingkan isi berkas unggahan dengan berkas asli untuk menandai field yang berbeda
+const compareWithOriginal = async (doc, file) => {
+  try {
+    return await DocumentComparator.compareDocuments(resolveStoredPath(doc.file_path), file.path, file.mimetype);
+  } catch (compareError) {
+    console.error('Document Compare Error:', compareError);
+    return { supported: false, reason: 'Dokumen tidak dapat dibaca untuk perbandingan.' };
+  }
+};
+
 const DocumentController = {
   // 0. Cek apakah mahasiswa sudah punya dokumen aktif (dipanggil sebelum issue)
   checkExisting: async (req, res) => {
@@ -43,39 +84,25 @@ const DocumentController = {
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
+      // Validasi gagal: berkas yang terlanjur diunggah dibuang. Setelah lolos validasi,
+      // berkas dipertahankan karena itulah dokumen yang diterbitkan.
       const { studentId, docType, docTitle, requestId } = req.body;
       if (!studentId || !docType || !docTitle) {
-        // Hapus file yang terlanjur diupload jika validasi gagal
-        fs.unlinkSync(req.file.path);
-        return res.status(400).json({ error: 'Missing required fields' });
+        return rejectUpload(res, req.file, 400, { error: 'Missing required fields' });
       }
 
-      // Pastikan student ada
       const student = await StudentModel.getById(studentId);
       if (!student) {
-        fs.unlinkSync(req.file.path);
-        return res.status(404).json({ error: 'Student not found' });
+        return rejectUpload(res, req.file, 404, { error: 'Student not found' });
       }
 
-      // Jika requestId disertakan, validasi kepemilikan dan statusnya
-      let transcriptReq = null;
-      if (requestId) {
-        transcriptReq = await TranscriptRequestModel.getById(requestId);
-        if (
-          !transcriptReq ||
-          Number(transcriptReq.student_id) !== Number(studentId) ||
-          transcriptReq.status !== 'pending'
-        ) {
-          fs.unlinkSync(req.file.path);
-          return res.status(400).json({
-            error: 'Permintaan transkrip tidak valid, bukan milik mahasiswa ini, atau tidak berstatus pending.'
-          });
-        }
+      if (requestId && !isUsableRequest(await TranscriptRequestModel.getById(requestId), studentId)) {
+        return rejectUpload(res, req.file, 400, {
+          error: 'Permintaan transkrip tidak valid, bukan milik mahasiswa ini, atau tidak berstatus pending.'
+        });
       }
 
-      // Generate Verification ID (misal: DOC-2026-STUDENTID-RANDOM)
-      const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const verificationId = `DOC-${new Date().getFullYear()}-${student.student_id_number}-${randomStr}`;
+      const verificationId = generateVerificationId(student);
 
       // 1. Generate SHA-256 Hash dari file
       const fileHash = await HashService.hashFile(req.file.path);
@@ -195,6 +222,8 @@ const DocumentController = {
   },
 
   // 4. Verifikasi dengan Upload File Baru (Cocokkan Hash)
+  // Berkas unggahan hanya dipakai untuk dicocokkan, jadi selalu dibuang di akhir (blok finally).
+  // Isi "message" dibaca frontend (classifyResult di Verify.jsx): jangan diubah tanpa menyesuaikannya.
   verifyByFile: async (req, res) => {
     try {
       if (!req.file) {
@@ -203,7 +232,6 @@ const DocumentController = {
 
       const { verificationId } = req.body;
       if (!verificationId) {
-        fs.unlinkSync(req.file.path);
         return res.status(400).json({ error: 'Verification ID is required' });
       }
 
@@ -217,7 +245,6 @@ const DocumentController = {
       const doc = await DocumentModel.getByVerificationId(verificationId);
 
       if (isHashValid) {
-        fs.unlinkSync(req.file.path);
         return res.json({
           isValid: true,
           message: 'Document is authentic and unmodified',
@@ -226,7 +253,6 @@ const DocumentController = {
       }
 
       if (!isDocValid) {
-        fs.unlinkSync(req.file.path);
         const isRevoked = doc && doc.status === 'revoked';
         return res.json({
           isValid: false,
@@ -237,11 +263,8 @@ const DocumentController = {
         });
       }
 
-      // File ini mungkin dokumen asli yang terdaftar dengan Verification ID lain (ID tertukar)
-      const matchingDoc = await DocumentModel.getByFileHash(uploadedFileHash);
-      if (matchingDoc && matchingDoc.verification_id !== verificationId &&
-          await BlockchainService.verifyHash(matchingDoc.verification_id, uploadedFileHash)) {
-        fs.unlinkSync(req.file.path);
+      const matchingDoc = await findSwappedDocument(uploadedFileHash, verificationId);
+      if (matchingDoc) {
         return res.json({
           isValid: false,
           message: 'This file is an authentic document, but it is registered under a different Verification ID.',
@@ -253,27 +276,19 @@ const DocumentController = {
         });
       }
 
-      // Hash tidak cocok → bandingkan isi dokumen dengan file asli untuk menandai field yang berbeda
-      let comparison = null;
-      try {
-        comparison = await DocumentComparator.compareDocuments(resolveStoredPath(doc.file_path), req.file.path, req.file.mimetype);
-      } catch (compareError) {
-        console.error('Document Compare Error:', compareError);
-        comparison = { supported: false, reason: 'Dokumen tidak dapat dibaca untuk perbandingan.' };
-      }
-      fs.unlinkSync(req.file.path);
-
+      // Hash tidak cocok: tandai field yang berbeda dari berkas asli
       return res.json({
         isValid: false,
         message: 'Document has been modified or is fake. Hash does not match.',
         documentInfo: toPublicDocumentInfo(doc),
-        comparison
+        comparison: await compareWithOriginal(doc, req.file)
       });
 
     } catch (error) {
-      if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       console.error('Verify By File Error:', error);
       res.status(500).json({ error: 'Failed to verify document via file' });
+    } finally {
+      discardUpload(req.file);
     }
   },
 
