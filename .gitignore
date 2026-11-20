@@ -42,3 +42,6 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Laporan coverage Hardhat
+blockchain/coverage/

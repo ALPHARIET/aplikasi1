@@ -1,5 +1,5 @@
 // Login, pengecekan tab peran, dan pendaftaran akun yang hanya boleh oleh admin
-const { test, before, after } = require('node:test');
+const { test, before, after, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const { startTestServer } = require('../helpers/testServer');
 
@@ -22,6 +22,8 @@ before(async () => {
   assert.equal(created.status, 201, JSON.stringify(created.data));
 });
 after(async () => { await srv?.close(); });
+beforeEach(() => srv?.clearEvidence());
+afterEach((t) => srv?.recordEvidence(t));
 
 const login = (body) => srv.api('POST', '/auth/login', { body });
 

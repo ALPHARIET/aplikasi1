@@ -1,5 +1,5 @@
 // Konsistensi antara database, berkas di disk, dan blockchain saat terjadi kegagalan atau penghapusan
-const { test, before, after } = require('node:test');
+const { test, before, after, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
@@ -38,6 +38,8 @@ before(async () => {
   adminToken = await srv.login(srv.admin.email, srv.admin.password, 'admin');
 });
 after(async () => { await srv?.close(); });
+beforeEach(() => srv?.clearEvidence());
+afterEach((t) => srv?.recordEvidence(t));
 
 test('verifikasi berkas: dokumen aktif di blockchain tapi barisnya hilang dari database tidak membuat server error', { skip }, async () => {
   const studentId = await createStudent();

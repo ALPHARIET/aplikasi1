@@ -37,6 +37,18 @@ async function startTestServer() {
   });
   const baseUrl = `http://127.0.0.1:${server.address().port}/api/v1`;
 
+  // Mode bukti (TEST_EVIDENCE=1): setiap panggilan API dicatat, lalu ditulis sebagai
+  // diagnostik TAP pada test yang memanggilnya (lihat recordEvidence). Token dipendekkan.
+  const calls = [];
+  const describeBody = (body) => {
+    if (body instanceof FormData) {
+      return Object.fromEntries([...body.entries()].map(([k, v]) =>
+        [k, typeof v === 'string' ? v : `[berkas ${v.name}, ${v.size} byte, ${v.type}]`]));
+    }
+    if (body && typeof body === 'object' && 'password' in body) return { ...body, password: '***' };
+    return body ?? null;
+  };
+
   // Panggil API; body berupa objek (JSON) atau FormData (unggah berkas)
   async function api(method, url, { token, body } = {}) {
     const headers = {};
@@ -51,7 +63,26 @@ async function startTestServer() {
     const text = await res.text();
     let data;
     try { data = JSON.parse(text); } catch { data = text; }
+    if (process.env.TEST_EVIDENCE) {
+      calls.push({
+        request: `${method} /api/v1${url}`,
+        auth: token ? `${token.slice(0, 12)}…` : null,
+        body: describeBody(body),
+        status: res.status,
+        response: typeof data === 'string' ? `[${res.headers.get('content-type')}, ${text.length} byte]` : JSON.stringify(data).slice(0, 400)
+      });
+    }
     return { status: res.status, data, headers: res.headers };
+  }
+
+  // Dipanggil dari beforeEach: buang catatan panggilan dari setup (before) atau test sebelumnya
+  function clearEvidence() {
+    calls.length = 0;
+  }
+
+  // Dipanggil dari afterEach: tulis panggilan API test yang baru selesai sebagai diagnostik
+  function recordEvidence(t) {
+    for (const call of calls.splice(0)) t.diagnostic(`bukti ${JSON.stringify(call)}`);
   }
 
   async function login(identifier, password, role) {
@@ -79,7 +110,7 @@ async function startTestServer() {
     blockchain.provider?.destroy();
   }
 
-  return { baseUrl, api, login, pdfForm, pool, close, admin: ADMIN };
+  return { baseUrl, api, login, pdfForm, pool, close, clearEvidence, recordEvidence, admin: ADMIN };
 }
 
 module.exports = { startTestServer, fixture, hasFixtures };

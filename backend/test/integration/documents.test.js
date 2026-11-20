@@ -1,7 +1,7 @@
 // Alur dokumen: terbit, verifikasi lewat ID dan berkas, cabut, unduh, hapus.
 // Pesan verifikasi berbahasa Inggris ikut dikunci karena classifyResult di
 // frontend/src/pages/Verify.jsx membaca teks pesan itu (/revoked/i, /not registered/i).
-const { test, before, after } = require('node:test');
+const { test, before, after, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const { startTestServer, fixture, hasFixtures } = require('../helpers/testServer');
@@ -53,6 +53,8 @@ before(async () => {
   }
 });
 after(async () => { await srv?.close(); });
+beforeEach(() => srv?.clearEvidence());
+afterEach((t) => srv?.recordEvidence(t));
 
 test('terbit: respons berisi Verification ID, hash, dan tautan verifikasi', { skip }, () => {
   const d = docs.rina;
