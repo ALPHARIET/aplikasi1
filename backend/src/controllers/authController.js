@@ -3,6 +3,11 @@ const jwt = require('jsonwebtoken');
 const { JWT_SECRET, JWT_EXPIRES_IN } = require('../config/jwt');
 const UserModel = require('../models/userModel');
 const StudentModel = require('../models/studentModel');
+const { passwordProblem } = require('../utils/passwordPolicy');
+
+// Hash pengganti untuk akun yang tidak ada. bcrypt tetap dijalankan supaya waktu respons
+// "akun tidak ada" sama dengan "kata sandi salah" (mencegah enumerasi akun lewat waktu).
+const DUMMY_HASH = bcrypt.hashSync('akun-tidak-ada', 10);
 
 const AuthController = {
   // Register a new user (khusus Admin, lihat authRoutes)
@@ -16,6 +21,11 @@ const AuthController = {
 
       if (!['admin', 'student'].includes(role)) {
         return res.status(400).json({ error: "Role harus 'admin' atau 'student'" });
+      }
+
+      const weakPassword = passwordProblem(password);
+      if (weakPassword) {
+        return res.status(400).json({ error: weakPassword });
       }
 
       const existingUser = await UserModel.findByEmail(email);
@@ -77,13 +87,10 @@ const AuthController = {
         }
       }
 
-      // Pesan error umum: tidak membocorkan apakah identitas terdaftar
-      if (!user) {
-        return res.status(401).json({ error: 'NIM/email atau kata sandi salah' });
-      }
-
-      const isMatch = await bcrypt.compare(password, user.password_hash);
-      if (!isMatch) {
+      // Pesan dan waktu respons sama untuk akun yang tidak ada dan sandi salah,
+      // jadi tidak membocorkan apakah identitas terdaftar
+      const isMatch = await bcrypt.compare(String(password), user ? user.password_hash : DUMMY_HASH);
+      if (!user || !isMatch) {
         return res.status(401).json({ error: 'NIM/email atau kata sandi salah' });
       }
 
@@ -143,13 +150,10 @@ const AuthController = {
         return res.status(400).json({ error: 'NIM dan kata sandi wajib diisi' });
       }
 
-      const user = await UserModel.findByNIM(nim);
-      if (!user || user.role !== 'student') {
-        return res.status(401).json({ error: 'NIM atau kata sandi salah' });
-      }
-
-      const isMatch = await bcrypt.compare(password, user.password_hash);
-      if (!isMatch) {
+      const found = await UserModel.findByNIM(nim);
+      const user = found && found.role === 'student' ? found : null;
+      const isMatch = await bcrypt.compare(String(password), user ? user.password_hash : DUMMY_HASH);
+      if (!user || !isMatch) {
         return res.status(401).json({ error: 'NIM atau kata sandi salah' });
       }
 

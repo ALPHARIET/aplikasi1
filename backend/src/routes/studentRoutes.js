@@ -12,8 +12,9 @@ router.put('/:id', isAdmin, StudentController.update);
 router.put('/:id/password', isAdmin, StudentController.resetPassword);
 router.delete('/:id', isAdmin, StudentController.delete);
 
-// Shared routes (Admin can view all, maybe we want to restrict students to only view themselves later)
 router.get('/', isAdmin, StudentController.getAll);
-router.get('/:id', StudentController.getById);
+// Data mahasiswa (termasuk email) hanya untuk Admin. Mahasiswa membaca profilnya sendiri
+// lewat GET /api/v1/student/me, yang mengambil ID dari token, bukan dari URL.
+router.get('/:id', isAdmin, StudentController.getById);
 
 module.exports = router;

@@ -58,7 +58,9 @@ afterEach((t) => srv?.recordEvidence(t));
 
 test('terbit: respons berisi Verification ID, hash, dan tautan verifikasi', { skip }, () => {
   const d = docs.rina;
-  assert.match(d.verificationId, /^DOC-\d{4}-G1A099101-[A-Z0-9]{1,6}$/);
+  // Tanpa NIM: ID ini tercatat permanen di blockchain
+  assert.match(d.verificationId, /^DOC-\d{4}-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/);
+  assert.equal(d.verificationId.includes('G1A099101'), false);
   assert.match(d.fileHash, /^0x[0-9a-f]{64}$/);
   assert.match(d.txHash, /^0x[0-9a-f]{64}$/);
   assert.ok(d.verifyUrl.endsWith(`/verify/${d.verificationId}`));

@@ -5,6 +5,7 @@ const UserModel = require('../models/userModel');
 const DocumentModel = require('../models/documentModel');
 const BlockchainService = require('../services/blockchainService');
 const { resolveStoredPath } = require('../utils/uploadPath');
+const { passwordProblem, randomPassword } = require('../utils/passwordPolicy');
 
 const STUDENT_DELETED_REASON = 'Data mahasiswa dihapus oleh Administrator.';
 
@@ -66,6 +67,11 @@ const StudentController = {
       // Validate required fields
       if (!email || !password || !studentIdNumber || !fullName || !faculty) {
         return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      const weakPassword = passwordProblem(password);
+      if (weakPassword) {
+        return res.status(400).json({ error: weakPassword });
       }
 
       // Check if email already exists
@@ -195,10 +201,14 @@ const StudentController = {
       const id = req.params.id;
       let { newPassword } = req.body || {};
 
-      if (!newPassword || newPassword.trim().length < 6) {
-        // Jika tidak diberikan atau kurang dari 6 karakter, buat password acak 8 karakter
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-        newPassword = Array.from({ length: 8 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+      if (newPassword === undefined || newPassword === null || newPassword === '') {
+        // Tanpa kata sandi baru dari admin: buat kata sandi acak 10 karakter (crypto)
+        newPassword = randomPassword();
+      } else {
+        const weakPassword = passwordProblem(newPassword);
+        if (weakPassword) {
+          return res.status(400).json({ error: weakPassword });
+        }
       }
 
       const saltRounds = 10;

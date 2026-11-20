@@ -72,10 +72,10 @@ test('F-ADM-07 Reset kata sandi mahasiswa oleh admin', { skip }, async () => {
   studentToken = await srv.login(MHS.studentIdNumber, MHS.password, 'student');
 });
 
-test('F-ADM-08 Reset kata sandi tanpa isian membuat sandi acak 8 karakter', { skip }, async () => {
+test('F-ADM-08 Reset kata sandi tanpa isian membuat sandi acak 10 karakter', { skip }, async () => {
   const res = await asAdmin('PUT', `/students/${studentId}/password`, {});
   assert.equal(res.status, 200);
-  assert.match(res.data.newPassword, /^[A-Za-z0-9]{8}$/);
+  assert.match(res.data.newPassword, /^[A-Za-z0-9]{10}$/);
   MHS.password = res.data.newPassword;
   studentToken = await srv.login(MHS.studentIdNumber, MHS.password, 'student');
 });
@@ -98,8 +98,8 @@ test('F-MHS-03 Ganti kata sandi: konfirmasi tidak sama ditolak', { skip }, async
   assert.equal(res.status, 400);
 });
 
-test('F-MHS-04 Ganti kata sandi: kurang dari 6 karakter ditolak', { skip }, async () => {
-  const res = await asStudent('PUT', '/student/password', { currentPassword: MHS.password, newPassword: '12345', confirmPassword: '12345' });
+test('F-MHS-04 Ganti kata sandi: kurang dari 8 karakter ditolak', { skip }, async () => {
+  const res = await asStudent('PUT', '/student/password', { currentPassword: MHS.password, newPassword: '1234567', confirmPassword: '1234567' });
   assert.equal(res.status, 400);
 });
 

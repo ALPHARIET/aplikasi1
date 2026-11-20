@@ -110,8 +110,8 @@ export default function StudentsManager() {
     e.preventDefault();
     setFormError('');
 
-    if (formData.password.length < 6) {
-      setFormError('Kata sandi harus terdiri dari minimal 6 karakter.');
+    if (formData.password.length < 8) {
+      setFormError('Kata sandi minimal 8 karakter.');
       return;
     }
 
@@ -413,7 +413,7 @@ export default function StudentsManager() {
               type={showPassword ? 'text' : 'password'}
               required
               name="new_student_secret_pass"
-              placeholder="Minimal 6 karakter"
+              placeholder="Minimal 8 karakter"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               autoComplete="new-password"

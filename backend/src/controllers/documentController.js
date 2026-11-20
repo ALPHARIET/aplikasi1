@@ -7,6 +7,7 @@ const DocumentComparator = require('../services/documentComparator');
 const { toStoredPath, resolveStoredPath } = require('../utils/uploadPath');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 // Data dokumen yang aman ditampilkan di endpoint verifikasi publik.
 // Jangan kirim baris database mentah: ada file_path, file_hash, id internal, dll.
@@ -34,11 +35,14 @@ const rejectUpload = (res, file, status, body) => {
   return res.status(status).json(body);
 };
 
-// Format: DOC-<tahun>-<NIM>-<6 karakter acak>, mis. DOC-2026-G1A022001-K3J9QZ
-const generateVerificationId = (student) => {
-  const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `DOC-${new Date().getFullYear()}-${student.student_id_number}-${randomStr}`;
-};
+// Format: DOC-<tahun>-<5 karakter>-<5 karakter>, mis. DOC-2026-K7Q2M-9XAP4.
+// ID ini tercatat permanen di blockchain, jadi sengaja tidak memuat NIM atau data pribadi lain.
+// 10 karakter acak dari crypto (32 simbol, tanpa 0/O/1/I yang mirip) = 50 bit, tidak bisa ditebak.
+const ID_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const randomCode = (length) =>
+  Array.from({ length }, () => ID_ALPHABET[crypto.randomInt(ID_ALPHABET.length)]).join('');
+const generateVerificationId = () =>
+  `DOC-${new Date().getFullYear()}-${randomCode(5)}-${randomCode(5)}`;
 
 // Permintaan transkrip hanya boleh dipakai kalau milik mahasiswa yang sama dan masih pending
 const isUsableRequest = (transcriptReq, studentId) =>
@@ -102,7 +106,7 @@ const DocumentController = {
         });
       }
 
-      const verificationId = generateVerificationId(student);
+      const verificationId = generateVerificationId();
 
       let docInsertId = null;
       let fileHash;

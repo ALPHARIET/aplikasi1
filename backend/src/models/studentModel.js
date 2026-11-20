@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { wholeSecondNow } = require('../utils/passwordPolicy');
 
 const StudentModel = {
   // Ambil semua data student beserta data usernya (menggunakan LEFT JOIN agar student tanpa user tetap tampil)
@@ -83,8 +84,9 @@ const StudentModel = {
     if (!student) return false;
     
     if (student.user_id) {
-      const [result] = await db.query('UPDATE users SET password_hash = ? WHERE id = ?', [
+      const [result] = await db.query('UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?', [
         newPasswordHash,
+        wholeSecondNow(),
         student.user_id
       ]);
       return result.affectedRows > 0;

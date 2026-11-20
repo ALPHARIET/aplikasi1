@@ -85,11 +85,20 @@ test('identitas atau kata sandi kosong ditolak', async () => {
   assert.equal((await login({ identifier: 'x' })).status, 400);
 });
 
-test('login berulang tidak diblokir rate limit', async () => {
-  for (let i = 0; i < 12; i++) {
-    const res = await login({ identifier: srv.admin.email, password: 'salah' });
-    assert.equal(res.status, 401);
+// Pengguna yang masuk dengan benar tidak pernah tertahan; penahan hanya menghitung sandi salah
+// (lihat security.test.js S-15 untuk sisi penahanannya)
+test('login berulang dengan sandi benar tidak pernah diblokir', async () => {
+  for (let i = 0; i < 25; i++) {
+    const res = await login({ identifier: srv.admin.email, password: srv.admin.password });
+    assert.equal(res.status, 200);
   }
+});
+
+test('salah ketik sandi beberapa kali lalu benar tetap bisa masuk', async () => {
+  for (let i = 0; i < 9; i++) {
+    assert.equal((await login({ identifier: srv.admin.email, password: 'salah' })).status, 401);
+  }
+  assert.equal((await login({ identifier: srv.admin.email, password: srv.admin.password })).status, 200);
 });
 
 test('/register tanpa token ditolak', async () => {

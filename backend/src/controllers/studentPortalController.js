@@ -6,6 +6,7 @@ const UserModel = require('../models/userModel');
 const DocumentModel = require('../models/documentModel');
 const TranscriptRequestModel = require('../models/transcriptRequestModel');
 const { resolveStoredPath } = require('../utils/uploadPath');
+const { passwordProblem } = require('../utils/passwordPolicy');
 
 const StudentPortalController = {
   // 1. Profil Mahasiswa (Hanya data diri sendiri dari token)
@@ -42,8 +43,9 @@ const StudentPortalController = {
         return res.status(400).json({ error: 'Semua kolom kata sandi wajib diisi' });
       }
 
-      if (newPassword.length < 6) {
-        return res.status(400).json({ error: 'Kata sandi baru minimal 6 karakter' });
+      const weakPassword = passwordProblem(newPassword);
+      if (weakPassword) {
+        return res.status(400).json({ error: weakPassword.replace('Kata sandi', 'Kata sandi baru') });
       }
 
       if (newPassword !== confirmPassword) {

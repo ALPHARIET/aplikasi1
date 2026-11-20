@@ -63,8 +63,8 @@ export default function StudentProfile() {
       return;
     }
 
-    if (newPassword.length < 6) {
-      setPwdError('Kata sandi baru minimal 6 karakter.');
+    if (newPassword.length < 8) {
+      setPwdError('Kata sandi baru minimal 8 karakter.');
       return;
     }
 
@@ -223,7 +223,7 @@ export default function StudentProfile() {
               label="Kata Sandi Baru"
               type={showNew ? 'text' : 'password'}
               required
-              placeholder="Minimal 6 karakter"
+              placeholder="Minimal 8 karakter"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               disabled={submitting || !!pwdSuccess}

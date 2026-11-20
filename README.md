@@ -41,9 +41,19 @@ RPC_URL=http://127.0.0.1:8545
 CONTRACT_ADDRESS=
 # Private key Account #0 yang tampil saat `npx hardhat node` dijalankan
 OWNER_PRIVATE_KEY=
+
+# Keamanan (opsional, nilai di bawah adalah bawaan)
+# Origin frontend yang boleh memanggil API, pisahkan dengan koma
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173
+# Penahan tebak kata sandi: hanya login GAGAL yang dihitung, login yang benar tidak pernah tertahan
+LOGIN_MAX_FAILS_PER_ACCOUNT=10
+LOGIN_MAX_FAILS_PER_IP=50
+LOGIN_LOCK_MINUTES=15
 ```
 
 > `OWNER_PRIVATE_KEY` harus milik akun yang men-deploy contract (Account #0), karena hanya owner yang boleh menerbitkan/mencabut dokumen.
+
+> Kalau API dibuka dari alamat lain (mis. frontend di-deploy ke domain sendiri), tambahkan alamatnya ke `CORS_ORIGINS`. Browser akan menolak panggilan dari origin yang tidak terdaftar.
 
 ## 2. Jalankan aplikasi (4 terminal)
 
@@ -71,7 +81,7 @@ Perintah ini menulis `blockchain/deployment.json` (alamat contract + ABI) yang d
 ```bash
 cd backend
 npm install
-node database/migrations/run_migration.js   # buat database + tabel (sekali saja)
+node database/migrations/run_migration.js   # buat/perbarui database + tabel (aman diulang)
 node database/migrations/seed_admin.js      # buat akun admin (sekali saja)
 npm run dev                                  # API di http://localhost:5000
 ```
@@ -126,6 +136,9 @@ diterbitkan ulang. File PDF dibuat deterministik, jadi file `asli/` selalu cocok
 - **Hardhat node menyimpan data di memori.** Setiap kali `npx hardhat node` dimatikan, semua data blockchain hilang. Setelah menyalakannya lagi, ulangi langkah deploy (Terminal 2) lalu restart backend. Dokumen lama di MySQL akan terbaca **tidak valid** karena tidak ada lagi di blockchain — terbitkan ulang untuk demo.
 - Jika `CONTRACT_ADDRESS` diisi di `.env`, nilainya menimpa `deployment.json`. Pastikan sama dengan alamat hasil deploy terbaru, atau kosongkan saja.
 - Frontend memanggil API di `http://localhost:5000/api/v1` (`frontend/src/services/api.js`), jadi backend harus berjalan di port 5000.
+- **Database lama perlu migrasi 003.** Jalankan lagi `node database/migrations/run_migration.js` agar kolom `users.password_changed_at` ditambahkan. Kolom ini membuat sesi lama berakhir setelah kata sandi diubah atau direset.
+- **Format Verification ID** sekarang `DOC-<tahun>-XXXXX-XXXXX` (acak, tanpa NIM) karena ID ini tercatat permanen di blockchain. ID lama berformat `DOC-<tahun>-<NIM>-XXXXXX` tetap bisa diverifikasi.
+- Kata sandi minimal **8 karakter** di semua formulir. Setelah 10 kali salah memasukkan kata sandi untuk akun yang sama, login akun itu ditahan 15 menit dari alamat IP tersebut.
 
 ## Testing
 
@@ -134,8 +147,8 @@ Semua test memakai test runner bawaan Node (`node --test`), tanpa dependensi tam
 | Perintah | Isi | Butuh |
 |---|---|---|
 | `cd blockchain && npm test` | 28 test smart contract | - |
-| `cd backend && npm run test:unit` | `uploadPath`, `hashService`, snapshot `documentComparator` | data demo (`npm run seed:demo`) |
-| `cd backend && npm test` | unit + integrasi API: login dan tab peran, register khusus admin, terbit, verifikasi (valid, diubah, tidak terdaftar, ID tertukar, dicabut), unduh, hapus, serta konsistensi saat blockchain gagal dan saat mahasiswa dihapus | MySQL, Hardhat node + deploy, data demo |
+| `cd backend && npm run test:unit` | `uploadPath`, `hashService`, `passwordPolicy`, `loginThrottle`, snapshot `documentComparator` | data demo (`npm run seed:demo`) |
+| `cd backend && npm test` | unit + integrasi API: login dan tab peran, register khusus admin, terbit, verifikasi (valid, diubah, tidak terdaftar, ID tertukar, dicabut), unduh, hapus, konsistensi saat blockchain gagal dan saat mahasiswa dihapus, serta regresi keamanan (`security.test.js`: IDOR, penahan login, sesi dicabut, isi berkas, galat, CORS, header) | MySQL, Hardhat node + deploy, data demo |
 | `cd frontend && npm test` | logika halaman verifikasi, `sha256Hex`, helper formulir terbit | - |
 | `cd frontend && npm run test:e2e` | Chrome headless: beranda, verifikasi asli/palsu, login salah tab, terbitkan + modal duplikat | semua layanan berjalan (Terminal 1-4) dan data demo |
 

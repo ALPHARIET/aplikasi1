@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { wholeSecondNow } = require('../utils/passwordPolicy');
 
 const UserModel = {
   // Find a user by email
@@ -25,6 +26,12 @@ const UserModel = {
     return rows[0];
   },
 
+  // Data yang dibutuhkan verifyToken untuk memastikan token masih berlaku
+  findAuthState: async (id) => {
+    const [rows] = await db.query('SELECT id, role, password_changed_at FROM users WHERE id = ?', [id]);
+    return rows[0];
+  },
+
   // Create a new user
   create: async (userData) => {
     const { name, email, passwordHash, role } = userData;
@@ -38,8 +45,8 @@ const UserModel = {
   // Update password hash
   updatePassword: async (userId, newPasswordHash) => {
     const [result] = await db.query(
-      'UPDATE users SET password_hash = ? WHERE id = ?',
-      [newPasswordHash, userId]
+      'UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?',
+      [newPasswordHash, wholeSecondNow(), userId]
     );
     return result.affectedRows;
   }

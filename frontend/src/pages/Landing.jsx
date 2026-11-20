@@ -94,7 +94,7 @@ const FAQS = [
   },
   {
     q: 'Dari mana saya mendapat Verification ID?',
-    a: 'Dari pemilik transkrip. Mahasiswa bisa menyalinnya di Portal Mahasiswa, menu Dokumen. Formatnya seperti DOC-2026-G1A022001-OU6Q21.',
+    a: 'Dari pemilik transkrip. Mahasiswa bisa menyalinnya di Portal Mahasiswa, menu Dokumen. Formatnya seperti DOC-2026-K7Q2M-9XAP4.',
   },
   {
     q: 'Kenapa berkas hasil scan dinyatakan tidak cocok?',
@@ -147,7 +147,7 @@ function VerifyForm() {
           type="text"
           value={id}
           onChange={(e) => setId(e.target.value)}
-          placeholder="DOC-2026-G1A022001-OU6Q21"
+          placeholder="DOC-2026-K7Q2M-9XAP4"
           autoComplete="off"
           spellCheck={false}
           aria-describedby="hero-verification-hint"

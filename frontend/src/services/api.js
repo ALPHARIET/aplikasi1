@@ -15,4 +15,13 @@ api.interceptors.request.use((config) => {
   return Promise.reject(error);
 });
 
+// Sesi yang dicabut server (kata sandi diubah, akun dihapus): buang token lalu kembali ke halaman masuk
+api.interceptors.response.use((response) => response, (error) => {
+  if (error.response?.status === 401 && error.response.data?.code === 'SESSION_INVALID') {
+    localStorage.removeItem('token');
+    if (window.location.pathname !== '/login') window.location.assign('/login');
+  }
+  return Promise.reject(error);
+});
+
 export default api;
